@@ -1,0 +1,59 @@
+# OS artifacts
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# .NET / C# build artifacts
+bin/
+obj/
+**/bin/
+**/obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.userprefs
+*.db
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+
+# Node / Frontend dependencies & build output
+node_modules/
+**/node_modules/
+.next/
+**/.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Environment variable files
+.env*.local
+frontend/.env.local
+frontend/.env*.local
+!frontend/.env.example
+
+# IDE & Editor local state
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Cursor local runtime state
+.cursor/statsig-cache.json
+.cursor/ide_state.json
+.cursor/agent-cli-state.json
+.cursor/.ponytail-active
+.cursor/chats/
+.cursor/browser-logs/
+.cursor/ai-tracking/
