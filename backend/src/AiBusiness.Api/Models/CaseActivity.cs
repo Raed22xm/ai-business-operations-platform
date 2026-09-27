@@ -13,6 +13,9 @@ public enum CaseActivityEventType
     TaskUpdated,
     TaskCompleted,
     TaskDeleted,
+    DraftCreated,
+    DraftUpdated,
+    DraftApproved,
 }
 
 public class CaseActivity

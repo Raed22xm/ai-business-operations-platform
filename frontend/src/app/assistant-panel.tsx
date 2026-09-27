@@ -7,9 +7,11 @@ import {
   draftCaseResponseAction,
   generateCaseSummaryAction,
 } from "@/app/assistant-actions";
+import { createDraftAction } from "@/app/cases/[id]/draft-actions";
 import { CopyBrief } from "@/app/dashboard-tools";
-import { caseStatusLabel, type CustomerCase } from "@/lib/cases-shared";
+import { caseStatusLabel, isCaseArchived, type CustomerCase } from "@/lib/cases-shared";
 import type { Customer } from "@/lib/customers-shared";
+import { ScheduleFollowUpForm } from "@/app/schedule-follow-up-form";
 
 type OutputKind = "summary" | "draft";
 
@@ -36,7 +38,10 @@ export function AssistantPanel({
   const [lastAction, setLastAction] = useState<OutputKind | null>(null);
   const [pending, startTransition] = useTransition();
   const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
+  const [saveDraftState, setSaveDraftState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [isSchedulingFollowUp, setIsSchedulingFollowUp] = useState(false);
   const caseId = work?.id ?? null;
+  const isArchived = work ? isCaseArchived(work) : false;
   const statusId = useId();
 
   function run(kind: OutputKind) {
@@ -47,6 +52,7 @@ export function AssistantPanel({
     setError(null);
     setLastAction(kind);
     setCopyState("idle");
+    setSaveDraftState("idle");
 
     startTransition(async () => {
       const result =
@@ -71,6 +77,7 @@ export function AssistantPanel({
   }
 
   const canGenerate = Boolean(caseId) && !pending;
+  const canSchedule = Boolean(work) && !isArchived;
 
   return (
     <section
@@ -90,13 +97,37 @@ export function AssistantPanel({
               <LockKeyhole size={10} aria-hidden="true" />
               Select a case
             </span>
+          ) : isArchived ? (
+            <span className="coming-soon">
+              <LockKeyhole size={10} aria-hidden="true" />
+              Archived case
+            </span>
           ) : null}
         </div>
 
         <div className="ai-action-grid" aria-describedby={statusId}>
-          <button type="button" disabled title="Coming soon">
+          <button
+            type="button"
+            className={canSchedule ? "is-ready" : undefined}
+            disabled={!canSchedule}
+            aria-expanded={isSchedulingFollowUp}
+            onClick={() => setIsSchedulingFollowUp((prev) => !prev)}
+            title={
+              !work
+                ? "Select a case to schedule a follow-up task"
+                : isArchived
+                  ? "Follow-ups cannot be scheduled for archived cases"
+                  : isSchedulingFollowUp
+                    ? "Close follow-up form"
+                    : "Schedule a follow-up task for this case"
+            }
+          >
             Schedule follow-up
-            <span className="action-soon">Coming soon</span>
+            {!work ? (
+              <span className="action-soon">Select case</span>
+            ) : isArchived ? (
+              <span className="action-soon">Archived</span>
+            ) : null}
           </button>
           <button
             type="button"
@@ -128,9 +159,23 @@ export function AssistantPanel({
             : error
               ? error
               : work
-                ? "Generate a summary or draft from this case’s saved data. Review before sharing."
-                : "Select a case to enable Generate summary and Draft response."}
+                ? isArchived
+                  ? "This case is archived. Restore it to schedule follow-ups or generate updates."
+                  : isSchedulingFollowUp
+                    ? "Schedule an internal follow-up task. It will appear on the case timeline and due date views."
+                    : "Generate a summary or draft from this case’s saved data. Review before sharing."
+                : "Select a case to enable follow-ups, summaries, and response drafts."}
         </p>
+
+        {isSchedulingFollowUp && work && !isArchived ? (
+          <ScheduleFollowUpForm
+            key={work.id}
+            caseId={work.id}
+            caseTitle={work.title}
+            customerName={customer?.name}
+            onClose={() => setIsSchedulingFollowUp(false)}
+          />
+        ) : null}
 
         {error ? (
           <div className="assistant-error">
@@ -188,15 +233,46 @@ export function AssistantPanel({
                 {copyState === "copied" ? <Check size={13} aria-hidden="true" /> : <Copy size={13} aria-hidden="true" />}
                 {copyState === "copied" ? "Copied" : "Copy"}
               </button>
+              {output.kind === "draft" && caseId ? (
+                <button
+                  type="button"
+                  className="workspace-button small-button"
+                  disabled={saveDraftState === "saving" || saveDraftState === "saved"}
+                  onClick={async () => {
+                    setSaveDraftState("saving");
+                    const res = await createDraftAction(caseId, output.text);
+                    if (res.status === "success") {
+                      setSaveDraftState("saved");
+                    } else {
+                      setSaveDraftState("error");
+                    }
+                  }}
+                >
+                  {saveDraftState === "saved" ? (
+                    <>
+                      <Check size={13} className="text-emerald-400" aria-hidden="true" />
+                      <span className="text-emerald-400">Saved to case drafts</span>
+                    </>
+                  ) : saveDraftState === "saving" ? (
+                    "Saving to case…"
+                  ) : (
+                    "Save to case drafts"
+                  )}
+                </button>
+              ) : null}
               <span
                 role="status"
-                className={copyState === "error" ? "copy-error" : "sr-only"}
+                className={copyState === "error" || saveDraftState === "error" ? "copy-error" : "sr-only"}
               >
                 {copyState === "copied"
                   ? "Copied to clipboard."
                   : copyState === "error"
                     ? "Couldn’t copy. Try again."
-                    : ""}
+                    : saveDraftState === "saved"
+                      ? "Draft saved to case."
+                      : saveDraftState === "error"
+                        ? "Could not save draft to case."
+                        : ""}
               </span>
             </div>
             {output.setupHint ? (

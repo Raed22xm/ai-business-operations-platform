@@ -4,7 +4,7 @@ import { ArrowDown, ArrowRight, ArrowUpRight, CalendarDays, Check, ChevronRight,
 import { AssistantPanel } from "@/app/assistant-panel";
 import { DashboardLoading } from "@/app/dashboard-loading";
 import { CasePicker } from "@/app/dashboard-tools";
-import { caseStatusLabel, getCases, type CustomerCase } from "@/lib/cases";
+import { caseStatusLabel, getCase, getCases, type CustomerCase } from "@/lib/cases";
 import { getCustomers, type Customer } from "@/lib/customers";
 import { getDashboardSummary, type DashboardSummary, type OutstandingTask } from "@/lib/dashboard";
 import { getTasksForCase, type CaseTask } from "@/lib/tasks";
@@ -20,10 +20,25 @@ export default function Home({ searchParams }: { searchParams: Promise<Query> })
 
 async function Dashboard({ searchParams }: { searchParams: Promise<Query> }) {
   const query = await searchParams;
-  const [summary, customers, cases] = await Promise.all([getDashboardSummary(), getCustomers({ search: query.q }), getCases()]);
-  const selectedCustomer = customers.find((customer) => customer.id === Number(query.customerId)) ?? customers.find((customer) => cases.some((work) => work.customerId === customer.id)) ?? customers[0];
+  const explicitCaseId = Number(query.caseId);
+  const [summary, customers, cases, explicitCase] = await Promise.all([
+    getDashboardSummary(),
+    getCustomers({ search: query.q }),
+    getCases(),
+    Number.isInteger(explicitCaseId) && explicitCaseId > 0
+      ? getCase(explicitCaseId).catch(() => null)
+      : Promise.resolve(null),
+  ]);
+  const selectedCustomer =
+    customers.find((customer) => customer.id === Number(query.customerId)) ??
+    (explicitCase ? customers.find((c) => c.id === explicitCase.customerId) : undefined) ??
+    customers.find((customer) => cases.some((work) => work.customerId === customer.id)) ??
+    customers[0];
   const customerCases = selectedCustomer ? cases.filter((work) => work.customerId === selectedCustomer.id) : [];
-  const selectedCase = customerCases.find((work) => work.id === Number(query.caseId)) ?? customerCases[0];
+  const selectedCase =
+    (explicitCase && selectedCustomer && explicitCase.customerId === selectedCustomer.id ? explicitCase : null) ??
+    customerCases.find((work) => work.id === Number(query.caseId)) ??
+    customerCases[0];
   let tasks: CaseTask[] = [];
   let tasksUnavailable = false;
   if (selectedCase) {

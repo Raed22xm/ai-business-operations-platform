@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { CaseActivitySection } from "@/app/cases/[id]/case-activity-section";
 import { CaseDetails } from "@/app/cases/[id]/case-details";
+import { CaseDraftsSection } from "@/app/cases/[id]/case-drafts-section";
 import { CaseTasksSection } from "@/app/cases/[id]/case-tasks-section";
 import { FlashNotice } from "@/app/flash-notice";
 import { noticeValue } from "@/lib/flash-notice";
@@ -95,6 +96,7 @@ export default async function CaseDetailsPage({
         listFilters={listFilters}
       />
       <CaseTasksSection caseId={work.id} readOnly={isCaseArchived(work)} />
+      <CaseDraftsSection caseId={work.id} readOnly={isCaseArchived(work)} />
       <CaseActivitySection caseId={work.id} />
     </main>
   );

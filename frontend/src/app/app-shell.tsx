@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Aperture, ArrowUpRight, BarChart3, BriefcaseBusiness, ChevronDown, CircleHelp, ClipboardList, Cpu, LayoutDashboard, Menu, Search, Settings2, Users, X } from "lucide-react";
+import { Aperture, ArrowUpRight, BarChart3, BriefcaseBusiness, ChevronDown, CircleHelp, ClipboardList, Cpu, Inbox, LayoutDashboard, Menu, Search, Settings2, Users, X } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { logoutAction } from "@/app/login/actions";
 
-type NavKey = "overview" | "customers" | "cases" | "tasks";
+type NavKey = "overview" | "inquiry" | "customers" | "cases" | "tasks";
 const links = [
   { key: "overview", href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { key: "inquiry", href: "/inquiry", label: "New inquiry", icon: Inbox },
   { key: "customers", href: "/customers", label: "Customers", icon: Users },
   { key: "cases", href: "/cases", label: "Cases", icon: BriefcaseBusiness },
   { key: "tasks", href: "/tasks", label: "Tasks", icon: ClipboardList },
@@ -16,13 +17,15 @@ const links = [
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const current: NavKey = pathname.startsWith("/customers")
-    ? "customers"
-    : pathname.startsWith("/cases")
-      ? "cases"
-      : pathname.startsWith("/tasks")
-        ? "tasks"
-        : "overview";
+  const current: NavKey = pathname.startsWith("/inquiry")
+    ? "inquiry"
+    : pathname.startsWith("/customers")
+      ? "customers"
+      : pathname.startsWith("/cases")
+        ? "cases"
+        : pathname.startsWith("/tasks")
+          ? "tasks"
+          : "overview";
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDialogElement>(null);
   const menuButton = useRef<HTMLButtonElement>(null);

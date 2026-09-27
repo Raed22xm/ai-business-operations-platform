@@ -101,6 +101,25 @@ export async function createTask(input: NewTask): Promise<TaskFormState> {
     };
   }
 
+  if (response.status === 409) {
+    const problem: unknown = await response.json().catch(() => null);
+    const detail =
+      typeof problem === "object" &&
+      problem !== null &&
+      "detail" in problem &&
+      typeof (problem as { detail: unknown }).detail === "string"
+        ? (problem as { detail: string }).detail
+        : "This case is archived and cannot be changed. Restore it first.";
+    return {
+      status: "error",
+      message: null,
+      formError: detail,
+      fieldErrors: {},
+      revision: 0,
+      taskId: null,
+    };
+  }
+
   return taskError(`Could not save the task (${response.status}).`);
 }
 

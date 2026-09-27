@@ -204,6 +204,41 @@ public static class CrmOpenApiExtensions
             schema.Description =
                 "Editable customer reply draft. Does not send messages. Uses OpenAI when configured, otherwise mock.";
         }
+        else if (type == typeof(ResponseDraft))
+        {
+            schema.Description =
+                "Saved response draft linked to a case. Supports Draft and Approved statuses, human review, and concurrency control.";
+            DescribeProperty(schema, "id", "Server-assigned identifier.");
+            DescribeProperty(schema, "caseId", "Parent case id.");
+            DescribeProperty(schema, "content", "Draft reply text (max 10000 chars).");
+            DescribeProperty(schema, "source", "Origin: Ai, Mock, or Manual.");
+            DescribeProperty(schema, "status", "Draft or Approved.");
+            DescribeProperty(schema, "createdBy", "Authenticated creator username.");
+            DescribeProperty(schema, "createdAt", "Server UTC timestamp of creation.");
+            DescribeProperty(schema, "updatedAt", "Server UTC timestamp of last edit, or null.");
+            DescribeProperty(schema, "approvedBy", "Username who approved the exact text, or null.");
+            DescribeProperty(schema, "approvedAt", "Server UTC timestamp of approval, or null.");
+            DescribeProperty(schema, "version", "Concurrency token incremented on each update.");
+        }
+        else if (type == typeof(CreateResponseDraftRequest))
+        {
+            schema.Description = "Payload to save a new manual response draft.";
+            DescribeProperty(schema, "content", "Draft customer reply text (1-10000 characters).");
+        }
+        else if (type == typeof(UpdateResponseDraftRequest))
+        {
+            schema.Description =
+                "Payload to update an existing response draft. Editing an Approved draft reverts it to Draft.";
+            DescribeProperty(schema, "content", "Updated draft text (1-10000 characters).");
+            DescribeProperty(schema, "expectedVersion", "Current version of the draft for optimistic concurrency conflict detection.");
+        }
+        else if (type == typeof(ApproveResponseDraftRequest))
+        {
+            schema.Description =
+                "Payload to approve an exact saved response draft. Approval applies strictly to saved text and never sends external messages.";
+            DescribeProperty(schema, "approvedContent", "Exact saved text being approved (must match current draft content).");
+            DescribeProperty(schema, "expectedVersion", "Current version of the draft for optimistic concurrency conflict detection.");
+        }
 
         return Task.CompletedTask;
     }

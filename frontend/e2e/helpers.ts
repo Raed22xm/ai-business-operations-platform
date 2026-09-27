@@ -179,6 +179,38 @@ export async function confirmDeleteDialog(page: Page): Promise<void> {
   await dialog.getByRole("button", { name: /^Delete$/ }).click();
 }
 
+export async function createDraftViaApi(
+  request: APIRequestContext,
+  apiURL: string,
+  caseId: number,
+  content: string,
+  accessToken?: string,
+): Promise<{
+  id: number;
+  caseId: number;
+  content: string;
+  source: string;
+  status: string;
+  createdBy: string;
+  version: number;
+}> {
+  const token = accessToken ?? readState().accessToken;
+  const response = await request.post(`${apiURL}/api/cases/${caseId}/drafts`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    data: { content },
+  });
+  expect(response.ok()).toBeTruthy();
+  return (await response.json()) as {
+    id: number;
+    caseId: number;
+    content: string;
+    source: string;
+    status: string;
+    createdBy: string;
+    version: number;
+  };
+}
+
 export function bearerHeaders(e2e: E2EState): Record<string, string> | undefined {
   return e2e.accessToken ? { Authorization: `Bearer ${e2e.accessToken}` } : undefined;
 }

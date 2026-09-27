@@ -17,6 +17,7 @@ public class AppDbContext : DbContext
     public DbSet<CustomerNote> CustomerNotes => Set<CustomerNote>();
     public DbSet<CaseTemplate> CaseTemplates => Set<CaseTemplate>();
     public DbSet<CaseTemplateTask> CaseTemplateTasks => Set<CaseTemplateTask>();
+    public DbSet<ResponseDraft> ResponseDrafts => Set<ResponseDraft>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -123,6 +124,35 @@ public class AppDbContext : DbContext
             task.Property(t => t.SortOrder).IsRequired();
             task.HasIndex(t => new { t.CaseTemplateId, t.SortOrder });
         });
+
+        modelBuilder.Entity<ResponseDraft>(draft =>
+        {
+            draft.ToTable("ResponseDrafts");
+            draft.Property(d => d.Content)
+                .IsRequired()
+                .HasMaxLength(ResponseDraft.MaxContentLength);
+            draft.Property(d => d.Source)
+                .HasConversion<string>()
+                .HasMaxLength(20)
+                .IsRequired();
+            draft.Property(d => d.Status)
+                .HasConversion<string>()
+                .HasMaxLength(20)
+                .HasDefaultValue(ResponseDraftStatus.Draft);
+            draft.Property(d => d.CreatedBy)
+                .IsRequired()
+                .HasMaxLength(200);
+            draft.Property(d => d.CreatedAt).IsRequired();
+            draft.Property(d => d.UpdatedAt);
+            draft.Property(d => d.ApprovedBy).HasMaxLength(200);
+            draft.Property(d => d.ApprovedAt);
+            draft.Property(d => d.Version).HasDefaultValue(1);
+            draft.HasIndex(d => new { d.CaseId, d.CreatedAt, d.Id });
+            draft.HasOne(d => d.Case)
+                .WithMany()
+                .HasForeignKey(d => d.CaseId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
     }
 
     private void ApplyEntityRules()
@@ -188,6 +218,32 @@ public class AppDbContext : DbContext
                 entry.Property(t => t.CreatedAt).CurrentValue =
                     entry.Property(t => t.CreatedAt).OriginalValue;
                 entry.Property(t => t.CreatedAt).IsModified = false;
+            }
+        }
+
+        foreach (var entry in ChangeTracker.Entries<ResponseDraft>())
+        {
+            if (entry.State == EntityState.Added)
+            {
+                entry.Entity.CreatedAt = UtcNow();
+                entry.Entity.UpdatedAt = null;
+                if (entry.Entity.Status == ResponseDraftStatus.Approved && entry.Entity.ApprovedAt == null)
+                {
+                    entry.Entity.ApprovedAt = UtcNow();
+                }
+            }
+            else if (entry.State == EntityState.Modified)
+            {
+                entry.Property(d => d.CreatedAt).CurrentValue =
+                    entry.Property(d => d.CreatedAt).OriginalValue;
+                entry.Property(d => d.CreatedAt).IsModified = false;
+                entry.Property(d => d.CreatedBy).CurrentValue =
+                    entry.Property(d => d.CreatedBy).OriginalValue;
+                entry.Property(d => d.CreatedBy).IsModified = false;
+                entry.Property(d => d.CaseId).CurrentValue =
+                    entry.Property(d => d.CaseId).OriginalValue;
+                entry.Property(d => d.CaseId).IsModified = false;
+                entry.Entity.UpdatedAt = UtcNow();
             }
         }
     }

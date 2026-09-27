@@ -34,7 +34,7 @@ test("dashboard selection, search, real tasks, responsive layout and navigation"
     await expect(dashboard.getByLabel("Case creation and current tasks").getByText("Confirm client details", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Draft response", exact: true })).toBeEnabled();
     await expect(page.getByRole("button", { name: "Generate summary", exact: true })).toBeEnabled();
-    await expect(page.getByRole("button", { name: /Schedule follow-up/i })).toBeDisabled();
+    await expect(page.getByRole("button", { name: /Schedule follow-up/i })).toBeEnabled();
     await expect(page.getByRole("button", { name: /Escalation check/i })).toBeDisabled();
     await expect(page.getByText("Coming soon").first()).toBeVisible();
     await expect(page.getByText("Generate a summary or draft from this case’s saved data")).toBeVisible();
