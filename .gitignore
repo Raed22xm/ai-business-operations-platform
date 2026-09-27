@@ -3,6 +3,7 @@
 Thumbs.db
 *.swp
 *~
+Screenshot*.png
 
 # .NET / C# build artifacts
 bin/
