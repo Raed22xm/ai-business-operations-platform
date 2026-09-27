@@ -6,7 +6,6 @@ import { CustomerTable } from "@/app/customers/customer-table";
 import { FlashNotice } from "@/app/flash-notice";
 import { noticeValue, withNotice } from "@/lib/flash-notice";
 import { ListPagination, lastPageNumber, parsePageParam } from "@/app/list-pagination";
-import { SiteNav } from "@/app/site-nav";
 import {
   CUSTOMERS_PAGE_SIZE,
   customersPageHref,
@@ -44,9 +43,8 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 px-4 py-10 sm:px-8">
-      <SiteNav current="customers" />
-      <div className="flex flex-col gap-2">
+    <main className="crm-page">
+      <div className="crm-page-heading">
         <h1 className="text-3xl font-semibold tracking-tight">Customers</h1>
         <p className="text-zinc-600 dark:text-zinc-400">
           Add a customer, or edit or delete one in the list.
@@ -57,24 +55,28 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
           <FlashNotice message={notice} />
         </Suspense>
       ) : null}
-      <CustomerForm />
-      <CustomerSearch key={search} initialSearch={search} />
-      {result.items.length === 0 ? (
-        <EmptyCustomers searching={search !== ""} />
-      ) : (
-        <CustomerTable
-          customers={result.items}
-          listSearch={search}
-          listPage={page}
-        />
-      )}
-      <ListPagination
-        page={page}
-        pageSize={result.pageSize}
-        totalCount={result.totalCount}
-        previousHref={customersPageHref(search || null, page <= 2 ? null : page - 1)}
-        nextHref={customersPageHref(search || null, page + 1)}
-      />
+      <div className="crm-list-layout">
+        <div className="crm-create-column"><CustomerForm /></div>
+        <section className="crm-records-panel" aria-label="Customers list">
+          <CustomerSearch key={search} initialSearch={search} />
+          {result.items.length === 0 ? (
+            <EmptyCustomers searching={search !== ""} />
+          ) : (
+            <CustomerTable
+              customers={result.items}
+              listSearch={search}
+              listPage={page}
+            />
+          )}
+          <ListPagination
+            page={page}
+            pageSize={result.pageSize}
+            totalCount={result.totalCount}
+            previousHref={customersPageHref(search || null, page <= 2 ? null : page - 1)}
+            nextHref={customersPageHref(search || null, page + 1)}
+          />
+        </section>
+      </div>
     </main>
   );
 }

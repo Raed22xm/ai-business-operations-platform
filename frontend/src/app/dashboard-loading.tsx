@@ -1,10 +1,3 @@
 export function DashboardLoading() {
-  return (
-    <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 px-4 py-10 sm:px-8">
-      <h1 className="text-3xl font-semibold tracking-tight">Overview</h1>
-      <p role="status" className="text-zinc-600 dark:text-zinc-400">
-        Loading overview…
-      </p>
-    </main>
-  );
+  return <main className="operations-dashboard" aria-busy="true" aria-label="Loading dashboard"><h1 className="sr-only">Dashboard</h1><p role="status" className="sr-only">Loading workspace…</p><div className="work-panel dashboard-skeleton" /><div className="work-panel dashboard-skeleton" /><div className="work-panel dashboard-skeleton" /></main>;
 }

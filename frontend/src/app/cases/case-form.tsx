@@ -45,7 +45,7 @@ export function CaseForm({ customers }: { customers: FormCustomer[] }) {
       noValidate
       aria-labelledby="add-case-heading"
       onReset={(event) => event.preventDefault()}
-      className="grid gap-4 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800"
+      className="crm-form grid gap-4 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800"
     >
       <div className="flex flex-col gap-1">
         <h2 id="add-case-heading" className="text-lg font-semibold">

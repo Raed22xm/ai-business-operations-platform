@@ -1,163 +1,107 @@
-import { Suspense } from "react";
 import Link from "next/link";
+import { Suspense } from "react";
+import { ArrowDown, ArrowRight, ArrowUpRight, CalendarDays, Check, ChevronRight, ClipboardList, Ellipsis, FileText, Plus, Users } from "lucide-react";
+import { AssistantPanel } from "@/app/assistant-panel";
 import { DashboardLoading } from "@/app/dashboard-loading";
-import { SiteNav } from "@/app/site-nav";
-import { casesPageHref } from "@/lib/cases";
+import { CasePicker } from "@/app/dashboard-tools";
+import { caseStatusLabel, getCases, type CustomerCase } from "@/lib/cases";
+import { getCustomers, type Customer } from "@/lib/customers";
 import { getDashboardSummary, type DashboardSummary } from "@/lib/dashboard";
+import { getTasksForCase, type CaseTask } from "@/lib/tasks";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Dashboard" };
+type Query = { q?: string; customerId?: string; caseId?: string };
 
-export const metadata = {
-  title: "Overview",
-};
-
-export default function Home() {
-  return (
-    <Suspense fallback={<DashboardLoading />}>
-      <OverviewDashboard />
-    </Suspense>
-  );
+export default function Home({ searchParams }: { searchParams: Promise<Query> }) {
+  return <Suspense fallback={<DashboardLoading />}><Dashboard searchParams={searchParams} /></Suspense>;
 }
 
-async function OverviewDashboard() {
-  const summary = await getDashboardSummary();
-  const isEmpty = summary.totalCustomers === 0 && summary.totalCases === 0;
+async function Dashboard({ searchParams }: { searchParams: Promise<Query> }) {
+  const query = await searchParams;
+  const [summary, customers, cases] = await Promise.all([getDashboardSummary(), getCustomers({ search: query.q }), getCases()]);
+  const selectedCustomer = customers.find((customer) => customer.id === Number(query.customerId)) ?? customers.find((customer) => cases.some((work) => work.customerId === customer.id)) ?? customers[0];
+  const customerCases = selectedCustomer ? cases.filter((work) => work.customerId === selectedCustomer.id) : [];
+  const selectedCase = customerCases.find((work) => work.id === Number(query.caseId)) ?? customerCases[0];
+  let tasks: CaseTask[] = [];
+  let tasksUnavailable = false;
+  if (selectedCase) {
+    try { tasks = await getTasksForCase(selectedCase.id); }
+    catch { tasksUnavailable = true; }
+  }
+  return <main className="operations-dashboard" aria-label="Operations dashboard">
+    <h1 className="sr-only">Dashboard</h1>
+    <CustomerPanel customers={customers} cases={cases} selectedCustomer={selectedCustomer} query={query} total={summary.totalCustomers} />
+    <CasePanel customer={selectedCustomer} work={selectedCase} cases={customerCases} tasks={tasks} tasksUnavailable={tasksUnavailable} query={query} />
+    <div className="dashboard-right-column">
+      <AssistantPanel
+        key={selectedCase?.id ?? "no-case"}
+        customer={selectedCustomer}
+        work={selectedCase}
+      />
+      <MetricsPanel summary={summary} />
+    </div>
+  </main>;
+}
 
-  return (
-    <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 px-4 py-10 sm:px-8">
-      <SiteNav current="overview" />
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-semibold tracking-tight">Overview</h1>
-        <p className="text-zinc-600 dark:text-zinc-400">
-          Current customer and case counts.
-        </p>
+function CustomerPanel({ customers, cases, selectedCustomer, query, total }: { customers: Customer[]; cases: CustomerCase[]; selectedCustomer?: Customer; query: Query; total: number }) {
+  return <section className="work-panel customer-panel" aria-labelledby="customer-list-heading">
+    <div className="panel-heading"><div><h2 id="customer-list-heading">Customer list</h2><p>{query.q ? `Results for “${query.q}”` : "Current clients"}</p></div><Link href="/customers" className="icon-button" aria-label="Manage customers"><Ellipsis size={20} /></Link></div>
+    <div className="customer-list-scroll">
+      <table className="workspace-customer-table"><thead><tr><th scope="col">Name <ArrowDown size={11} /><span className="customer-company-label"> / Company</span></th><th scope="col">Contact</th><th scope="col">Cases</th></tr></thead><tbody>
+        {customers.map((customer) => {
+          const work = cases.filter((item) => item.customerId === customer.id);
+          const active = work.some((item) => item.status !== "Closed");
+          const selected = customer.id === selectedCustomer?.id;
+          const params = new URLSearchParams({ customerId: String(customer.id) });
+          if (query.q) params.set("q", query.q);
+          return <tr key={customer.id} className={selected ? "is-selected" : ""}><td><Link className="customer-select" href={`/?${params}`} aria-current={selected ? "true" : undefined} aria-label={`Select ${customer.name}`}><Avatar customer={customer} /><span className="customer-identity"><strong>{customer.name}</strong><span>{customer.company || "Individual customer"}</span></span></Link></td><td><a className="customer-email" href={`mailto:${customer.email}`} title={customer.email}>{customer.email}</a></td><td><span className={`customer-work-status${active ? " is-open" : ""}`}><span />{active ? "Active" : work.length ? "Closed" : "No cases"}</span></td></tr>;
+        })}
+      </tbody></table>
+      {customers.length === 0 ? <div className="panel-empty"><Users size={30} /><h3>{query.q ? "No matching customers" : "Your workspace starts here"}</h3><p>{query.q ? "Try another name, company, or email." : "Add your first customer to bring their work into focus."}</p><Link href={query.q ? "/" : "/customers"} className="workspace-button">{query.q ? "Clear search" : "Add a customer"}<ArrowRight size={15} /></Link></div> : <div className="customer-list-note"><span className="connection-dot" />Select a customer to explore their work.</div>}
+    </div>
+    <div className="panel-footer"><span>{query.q ? `${customers.length} of ${total}` : total} {total === 1 ? "customer" : "customers"}</span><Link href="/customers">Manage customers<ArrowUpRight size={14} /></Link></div>
+  </section>;
+}
+
+function CasePanel({ customer, work, cases, tasks, tasksUnavailable, query }: { customer?: Customer; work?: CustomerCase; cases: CustomerCase[]; tasks: CaseTask[]; tasksUnavailable: boolean; query: Query }) {
+  return <section className="work-panel case-panel" aria-labelledby="case-panel-heading">
+    <div className="panel-heading"><h2 id="case-panel-heading">Case details</h2>{work && <Link href={`/cases/${work.id}`} className="icon-button" aria-label="Open case details"><Ellipsis size={20} /></Link>}</div>
+    {!work ? <div className="panel-empty case-empty"><ClipboardList size={33} /><h3>{customer ? "A fresh start" : "Your next case, in focus"}</h3><p>{customer ? `${customer.name} has no cases yet. Create one to start organising their work.` : "Select a customer to see their case and tasks here."}</p><Link className="workspace-button is-primary" href={customer ? `/cases?customerId=${customer.id}` : "/customers"}><Plus size={15} />{customer ? "Create a case" : "Add a customer"}</Link></div> : <>
+      <div className="case-content">
+        <div className="case-reference"><span>#{String(work.id).padStart(4, "0")}</span>{cases.length > 1 && <CasePicker cases={cases} selectedId={work.id} customerId={work.customerId} search={query.q} />}</div>
+        <h3 className="case-title"><Link href={`/cases/${work.id}`}>{work.title}</Link></h3>
+        <span className={`case-badge status-${work.status.toLowerCase()}`}><span />{caseStatusLabel(work.status)}</span>
+        <div className="case-information">
+          <div><p className="detail-label">Customer</p>{customer && <Link href={`/customers/${customer.id}`} className="case-customer"><Avatar customer={customer} small /><span><strong>{customer.name}</strong><span>{customer.company || "Individual customer"}</span></span></Link>}</div>
+          <div className="case-date"><p className="detail-label">Created</p><p><CalendarDays size={17} /><time dateTime={work.createdAt}>{dateLabel(work.createdAt)}</time><span className="timezone">UTC</span></p></div>
+        </div>
+        <div className="case-timeline" aria-label="Case creation and current tasks">
+          <div className="timeline-entry is-complete"><span className="timeline-node"><Check size={10} /></span><div><strong>Case created</strong><time dateTime={work.createdAt}>{dateLabel(work.createdAt, true)} UTC</time></div></div>
+          {tasksUnavailable ? <div className="timeline-entry"><span className="timeline-node" /><div><strong>Tasks couldn’t be loaded</strong><Link href={`/cases/${work.id}`}>Open case to try again <ChevronRight size={12} /></Link></div></div> : tasks.length ? tasks.slice(0, 3).map((task) => <div key={task.id} className={`timeline-entry${task.status === "Done" ? " is-complete" : task.status === "InProgress" ? " is-current" : ""}`}><span className="timeline-node">{task.status === "Done" && <Check size={10} />}</span><div><strong>{task.title}</strong><span>{task.status === "Todo" ? "To do" : task.status === "InProgress" ? "In progress" : "Done"}{task.dueDate ? ` · Due ${task.dueDate}` : ""}</span></div></div>) : <div className="timeline-entry"><span className="timeline-node" /><div><strong>Ready for the next step</strong><span>No tasks added yet</span><Link href={`/cases/${work.id}`}>Add a task <Plus size={12} /></Link></div></div>}
+        </div>
+        <div className="case-note"><div className="case-note-label"><FileText size={14} />Case description</div><p>{work.description || "Add a description to give this case more context."}</p><Link href={`/cases/${work.id}`} className="workspace-button small-button">Open & edit<ArrowUpRight size={13} /></Link></div>
       </div>
-
-      {isEmpty ? (
-        <EmptyOverview />
-      ) : (
-        <SummaryContent summary={summary} />
-      )}
-    </main>
-  );
+      <div className="panel-footer"><span>{tasksUnavailable ? "Tasks unavailable" : `${tasks.filter((task) => task.status === "Done").length} of ${tasks.length} tasks complete`}</span><Link href={`/cases/${work.id}`}>View case<ArrowRight size={14} /></Link></div>
+    </>}
+  </section>;
 }
 
-function SummaryContent({ summary }: { summary: DashboardSummary }) {
-  return (
-    <div className="flex flex-col gap-6">
-      <section aria-labelledby="totals-heading" className="flex flex-col gap-3">
-        <h2 id="totals-heading" className="text-lg font-semibold tracking-tight">
-          Totals
-        </h2>
-        <ul className="grid gap-3 sm:grid-cols-2">
-          <li>
-            <Link
-              href="/customers"
-              className="block rounded-lg border border-zinc-200 px-4 py-4 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
-            >
-              <p className="text-sm text-zinc-600 dark:text-zinc-400">Customers</p>
-              <p className="mt-1 text-2xl font-semibold tabular-nums">
-                {summary.totalCustomers}
-              </p>
-            </Link>
-          </li>
-          <li>
-            <Link
-              href="/cases"
-              className="block rounded-lg border border-zinc-200 px-4 py-4 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
-            >
-              <p className="text-sm text-zinc-600 dark:text-zinc-400">Cases</p>
-              <p className="mt-1 text-2xl font-semibold tabular-nums">
-                {summary.totalCases}
-              </p>
-            </Link>
-          </li>
-        </ul>
-      </section>
-
-      <section aria-labelledby="status-heading" className="flex flex-col gap-3">
-        <h2 id="status-heading" className="text-lg font-semibold tracking-tight">
-          Cases by status
-        </h2>
-        <ul className="grid gap-3 sm:grid-cols-3">
-          <StatusCard
-            label="Open"
-            count={summary.openCases}
-            href={casesPageHref(null, "Open", null)}
-          />
-          <StatusCard
-            label="In progress"
-            count={summary.inProgressCases}
-            href={casesPageHref(null, "InProgress", null)}
-          />
-          <StatusCard
-            label="Closed"
-            count={summary.closedCases}
-            href={casesPageHref(null, "Closed", null)}
-          />
-        </ul>
-      </section>
-
-      <nav aria-label="Quick links" className="flex flex-wrap gap-4 text-sm">
-        <Link
-          href="/customers"
-          className="text-zinc-600 underline underline-offset-4 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-zinc-50"
-        >
-          View customers
-        </Link>
-        <Link
-          href="/cases"
-          className="text-zinc-600 underline underline-offset-4 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-zinc-50"
-        >
-          View cases
-        </Link>
-      </nav>
-    </div>
-  );
+function MetricsPanel({ summary }: { summary: DashboardSummary }) {
+  const metrics = [
+    { label: "Active cases", value: summary.openCases + summary.inProgressCases, href: "/cases", caption: "Open + in progress" },
+    { label: "Customers", value: summary.totalCustomers, href: "/customers", caption: "In your workspace" },
+    { label: "In progress", value: summary.inProgressCases, href: "/cases?status=InProgress", caption: "Work underway" },
+    { label: "Closed cases", value: summary.closedCases, href: "/cases?status=Closed", caption: "Completed cases" },
+  ];
+  return <section id="business-kpis" className="work-panel metrics-panel" aria-labelledby="business-kpis-heading"><div className="panel-heading"><h2 id="business-kpis-heading">Business KPIs</h2><span className="live-data"><span className="connection-dot" />Live</span></div><div className="metrics-grid">{metrics.map((metric) => <Link className="metric-tile" key={metric.label} href={metric.href}><span>{metric.label}<ArrowUpRight size={12} /></span><strong>{metric.value}</strong><small>{metric.caption}</small></Link>)}</div><div className="metrics-footer"><span>{summary.totalCases} total cases</span><Link href="/cases?status=Open">{summary.openCases} open<ChevronRight size={12} /></Link></div></section>;
 }
 
-function StatusCard({
-  label,
-  count,
-  href,
-}: {
-  label: string;
-  count: number;
-  href: string;
-}) {
-  return (
-    <li>
-      <Link
-        href={href}
-        className="block rounded-lg border border-zinc-200 px-4 py-4 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
-      >
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">{label}</p>
-        <p className="mt-1 text-2xl font-semibold tabular-nums">{count}</p>
-      </Link>
-    </li>
-  );
+function Avatar({ customer, small = false }: { customer: Customer; small?: boolean }) {
+  const initials = customer.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("");
+  return <span aria-hidden="true" className={`customer-avatar avatar-${customer.id % 4}${small ? " is-small" : ""}`}>{initials}</span>;
 }
 
-function EmptyOverview() {
-  return (
-    <div className="flex flex-col gap-4">
-      <p className="rounded-lg border border-zinc-200 px-4 py-6 text-zinc-600 dark:border-zinc-800 dark:text-zinc-400">
-        No customers or cases yet. Add a customer to get started.
-      </p>
-      <nav aria-label="Quick links" className="flex flex-wrap gap-4 text-sm">
-        <Link
-          href="/customers"
-          className="text-zinc-600 underline underline-offset-4 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-zinc-50"
-        >
-          View customers
-        </Link>
-        <Link
-          href="/cases"
-          className="text-zinc-600 underline underline-offset-4 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-zinc-50"
-        >
-          View cases
-        </Link>
-      </nav>
-    </div>
-  );
+function dateLabel(value: string, withTime = false) {
+  return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC", ...(withTime ? { hour: "2-digit", minute: "2-digit" } : {}) }).format(new Date(value));
 }

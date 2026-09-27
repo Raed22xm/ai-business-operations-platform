@@ -17,7 +17,7 @@ export function CustomerCasesSection({
   loadError: string | null;
 }) {
   return (
-    <section aria-labelledby="customer-cases-heading" className="flex flex-col gap-4">
+    <section aria-labelledby="customer-cases-heading" className="crm-section flex flex-col gap-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <h2 id="customer-cases-heading" className="text-xl font-semibold tracking-tight">
           Cases
@@ -39,7 +39,7 @@ export function CustomerCasesSection({
           No cases for this customer.
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
+        <div className="crm-table-scroll">
           <table className="w-full min-w-[28rem] border-collapse text-left text-sm">
             <thead className="bg-zinc-50 text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400">
               <tr>
@@ -65,7 +65,7 @@ export function CustomerCasesSection({
                       {work.title}
                     </a>
                   </td>
-                  <td className="px-4 py-3">{caseStatusLabel(work.status)}</td>
+                  <td className="px-4 py-3"><span className="record-status" data-status={work.status}>{caseStatusLabel(work.status)}</span></td>
                   <td className="px-4 py-3">{formatCaseCreatedAt(work.createdAt)}</td>
                 </tr>
               ))}

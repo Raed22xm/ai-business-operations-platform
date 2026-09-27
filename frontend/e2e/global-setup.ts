@@ -6,12 +6,14 @@ import {
   apiProject,
   backendRoot,
   E2E_API_PORT,
+  E2E_API_UPSTREAM_PORT,
   E2E_CONTAINER_NAME,
   E2E_DATABASE,
   E2E_DB_PASSWORD,
   E2E_DB_USER,
   E2E_FRONTEND_PORT,
   frontendRoot,
+  mockRulesPath,
   runtimeDir,
   statePath,
   type E2EState,
@@ -115,15 +117,29 @@ export default async function globalSetup(): Promise<void> {
           PATH: PATH_WITH_DOTNET,
           DOTNET_ROOT: path.dirname(DOTNET),
           ASPNETCORE_ENVIRONMENT: "Development",
-          ASPNETCORE_URLS: `http://127.0.0.1:${E2E_API_PORT}`,
+          ASPNETCORE_URLS: `http://127.0.0.1:${E2E_API_UPSTREAM_PORT}`,
           ConnectionStrings__DefaultConnection: connectionString,
         },
         logPath: apiLog,
       },
     );
 
+    const upstreamApiURL = `http://127.0.0.1:${E2E_API_UPSTREAM_PORT}`;
+    await waitForUrl(`${upstreamApiURL}/api/health`, 60_000);
+
+    fs.writeFileSync(mockRulesPath, JSON.stringify({ rules: [] }, null, 2));
+    const proxyLog = path.join(runtimeDir, "proxy.log");
+    const proxy = spawnDetached(process.execPath, [path.join(__dirname, "run-api-mock-proxy.mjs")], {
+      cwd: frontendRoot,
+      env: {
+        ...process.env,
+        E2E_PROXY_PORT: String(E2E_API_PORT),
+        E2E_UPSTREAM_API_URL: upstreamApiURL,
+      },
+      logPath: proxyLog,
+    });
     const apiURL = `http://127.0.0.1:${E2E_API_PORT}`;
-    await waitForUrl(`${apiURL}/api/health`, 60_000);
+    await waitForUrl(`${apiURL}/api/health`, 30_000);
 
     const frontendLog = path.join(runtimeDir, "frontend.log");
     await run(
@@ -162,6 +178,7 @@ export default async function globalSetup(): Promise<void> {
       connectionString,
       containerName: E2E_CONTAINER_NAME,
       apiPid: api.pid ?? undefined,
+      proxyPid: proxy.pid ?? undefined,
       frontendPid: frontend.pid ?? undefined,
     };
     fs.writeFileSync(statePath, JSON.stringify(state, null, 2));

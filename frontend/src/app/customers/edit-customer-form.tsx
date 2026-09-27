@@ -52,7 +52,7 @@ export function EditCustomerForm({
       action={formAction}
       noValidate
       aria-labelledby="edit-customer-heading"
-      className="grid gap-4 rounded-lg border border-zinc-200 p-4 sm:grid-cols-2 dark:border-zinc-800"
+      className="crm-form grid gap-4 rounded-lg border border-zinc-200 p-4 sm:grid-cols-2 dark:border-zinc-800"
     >
       <h2 id="edit-customer-heading" className="text-lg font-semibold sm:col-span-2">
         Edit {customer.name}

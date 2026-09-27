@@ -149,7 +149,23 @@ export async function deleteCase(id: number, title: string): Promise<DeleteCaseS
     return deleteCaseError(id, "That case was not found.");
   }
 
+  if (response.status === 409) {
+    return deleteCaseError(id, await readCaseConflictDetail(response));
+  }
+
   return deleteCaseError(id, `Could not delete the case (${response.status}).`);
+}
+
+async function readCaseConflictDetail(response: Response): Promise<string> {
+  const fallback = "This case has tasks and cannot be deleted.";
+  try {
+    const body = (await response.json()) as { detail?: unknown };
+    return typeof body.detail === "string" && body.detail.trim() !== ""
+      ? body.detail.trim()
+      : fallback;
+  } catch {
+    return fallback;
+  }
 }
 
 export async function getCase(id: number): Promise<CustomerCase | null> {
@@ -346,11 +362,27 @@ export function formatCaseCreatedAt(value: string): string {
     return value;
   }
 
-  return `${new Intl.DateTimeFormat("en-GB", {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZone: "UTC",
-  }).format(date)} UTC`;
+  const months = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sept",
+    "Oct",
+    "Nov",
+    "Dec",
+  ];
+  const day = date.getUTCDate();
+  const month = months[date.getUTCMonth()] ?? "";
+  const year = date.getUTCFullYear();
+  const hours = String(date.getUTCHours()).padStart(2, "0");
+  const minutes = String(date.getUTCMinutes()).padStart(2, "0");
+
+  return `${day} ${month} ${year}, ${hours}:${minutes} UTC`;
 }
 
 function casesUrl(): string {

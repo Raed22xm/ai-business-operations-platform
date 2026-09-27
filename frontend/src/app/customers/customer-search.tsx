@@ -10,7 +10,7 @@ export function CustomerSearch({ initialSearch }: { initialSearch: string }) {
 
   return (
     <form
-      className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end"
+      className="crm-filters flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end"
       onSubmit={(event) => {
         event.preventDefault();
         router.push(customersPageHref(value.trim() || null));

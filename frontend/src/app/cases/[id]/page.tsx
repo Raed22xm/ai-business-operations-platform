@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { CaseDetails } from "@/app/cases/[id]/case-details";
-import { SiteNav } from "@/app/site-nav";
+import { CaseTasksSection } from "@/app/cases/[id]/case-tasks-section";
 import {
   casesPageHref,
   getCase,
@@ -66,14 +66,14 @@ export default async function CaseDetailsPage({
   );
 
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 px-4 py-10 sm:px-8">
-      <SiteNav current="cases" />
+    <main className="crm-page">
       <CaseDetails
         work={work}
         customerName={customerName}
         backHref={backHref}
         backLabel="Back to cases"
       />
+      <CaseTasksSection caseId={work.id} />
     </main>
   );
 }

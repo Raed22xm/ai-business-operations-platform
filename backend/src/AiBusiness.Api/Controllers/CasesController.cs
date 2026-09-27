@@ -2,6 +2,7 @@ using AiBusiness.Api.Data;
 using AiBusiness.Api.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace AiBusiness.Api.Controllers;
 
@@ -174,11 +175,15 @@ public class CasesController : ControllerBase
 
     [HttpDelete("{id:int}")]
     [EndpointSummary("Delete case")]
-    [EndpointDescription("Deletes the case. Leaves the customer and other cases unchanged.")]
+    [EndpointDescription(
+        "Deletes the case when it has no tasks. Leaves the customer and other cases unchanged. "
+            + "If the case still has tasks, returns 409 Conflict and leaves all records unchanged.")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict, Description = "Case has tasks and cannot be deleted.")]
     public async Task<IActionResult> Delete(int id)
     {
+        _database.ChangeTracker.Clear();
         var existing = await _database.Cases.FindAsync(id);
         if (existing is null)
         {
@@ -186,9 +191,42 @@ public class CasesController : ControllerBase
         }
 
         _database.Cases.Remove(existing);
-        await _database.SaveChangesAsync();
+        try
+        {
+            await _database.SaveChangesAsync();
+        }
+        catch (DbUpdateException exception) when (IsTasksForeignKeyViolation(exception))
+        {
+            _database.ChangeTracker.Clear();
+            return Problem(
+                detail: "This case has tasks and cannot be deleted.",
+                statusCode: StatusCodes.Status409Conflict);
+        }
 
         return NoContent();
+    }
+
+    private static bool IsTasksForeignKeyViolation(DbUpdateException exception)
+    {
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is PostgresException postgres)
+            {
+                return postgres.SqlState == PostgresErrorCodes.ForeignKeyViolation
+                    && (postgres.ConstraintName == "FK_CaseTasks_Cases_CaseId"
+                        || postgres.Message.Contains(
+                            "FK_CaseTasks_Cases_CaseId",
+                            StringComparison.Ordinal));
+            }
+
+            if (current.GetType().FullName == "Microsoft.Data.Sqlite.SqliteException"
+                && current.Message.Contains("FOREIGN KEY constraint failed", StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private async Task ValidateForCreate(Case work)

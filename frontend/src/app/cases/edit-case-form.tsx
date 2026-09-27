@@ -44,7 +44,7 @@ export function EditCaseForm({
       noValidate
       aria-labelledby="edit-case-heading"
       onReset={(event) => event.preventDefault()}
-      className="grid gap-4 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800"
+      className="crm-form grid gap-4 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800"
     >
       <h2 id="edit-case-heading" className="text-lg font-semibold">
         Edit {work.title}

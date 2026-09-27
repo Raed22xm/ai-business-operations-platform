@@ -76,7 +76,7 @@ test.describe("customer and case lifecycle", () => {
       );
 
       await page.goto("/customers");
-      await page.getByLabel("Search").fill(marker);
+      await page.getByLabel("Search", { exact: true }).fill(marker);
       await page.getByRole("button", { name: "Search", exact: true }).click();
       await expect(page.getByRole("link", { name: customerName })).toBeVisible();
       await page.getByRole("button", { name: `Delete ${customerName}` }).click();
@@ -94,7 +94,7 @@ test.describe("customer and case lifecycle", () => {
       createdIds.caseId = 0;
 
       await page.goto("/customers");
-      await page.getByLabel("Search").fill(marker);
+      await page.getByLabel("Search", { exact: true }).fill(marker);
       await page.getByRole("button", { name: "Search", exact: true }).click();
       await page.getByRole("button", { name: `Delete ${customerName}` }).click();
       await confirmDeleteDialog(page);

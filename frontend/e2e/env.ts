@@ -1,7 +1,10 @@
 import path from "node:path";
 
 /** Ports chosen to avoid the development stack (API 5222, frontend 3000, Postgres 5434). */
+/** Public API URL used by Next and Playwright (mock proxy). */
 export const E2E_API_PORT = 5230;
+/** Real ASP.NET listener behind the mock proxy. */
+export const E2E_API_UPSTREAM_PORT = 5231;
 export const E2E_FRONTEND_PORT = 3100;
 
 export const FORBIDDEN_DATABASE = "aibusiness_customers_dev";
@@ -16,6 +19,7 @@ export const backendRoot = path.join(repoRoot, "backend");
 export const apiProject = path.join(backendRoot, "src", "AiBusiness.Api");
 export const runtimeDir = path.join(__dirname, ".runtime");
 export const statePath = path.join(runtimeDir, "state.json");
+export const mockRulesPath = path.join(runtimeDir, "api-mock-rules.json");
 
 export type E2EState = {
   skipped: boolean;
@@ -25,6 +29,7 @@ export type E2EState = {
   connectionString?: string;
   containerName?: string;
   apiPid?: number;
+  proxyPid?: number;
   frontendPid?: number;
 };
 

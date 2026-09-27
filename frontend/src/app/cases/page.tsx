@@ -7,7 +7,6 @@ import { CaseTable } from "@/app/cases/case-table";
 import { FlashNotice } from "@/app/flash-notice";
 import { noticeValue, withNotice } from "@/lib/flash-notice";
 import { ListPagination, lastPageNumber, parsePageParam } from "@/app/list-pagination";
-import { SiteNav } from "@/app/site-nav";
 import {
   CASES_PAGE_SIZE,
   casesPageHref,
@@ -61,9 +60,8 @@ export default async function CasesPage({ searchParams }: CasesPageProps) {
   const namedCustomers = customers.map((customer) => ({ id: customer.id, name: customer.name }));
 
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 px-4 py-10 sm:px-8">
-      <SiteNav current="cases" />
-      <div className="flex flex-col gap-2">
+    <main className="crm-page">
+      <div className="crm-page-heading">
         <h1 className="text-3xl font-semibold tracking-tight">Cases</h1>
         <p className="text-zinc-600 dark:text-zinc-400">
           Add a case, or edit or delete one in the list.
@@ -74,42 +72,46 @@ export default async function CasesPage({ searchParams }: CasesPageProps) {
           <FlashNotice message={notice} />
         </Suspense>
       ) : null}
-      {customers.length === 0 ? <NoCustomers /> : <CaseForm customers={namedCustomers} />}
-      <CaseFilter
-        key={`${selectedCustomerId ?? ""}-${selectedStatus ?? ""}-${search}`}
-        customers={namedCustomers}
-        selectedCustomerId={selectedCustomerId}
-        selectedStatus={selectedStatus}
-        search={search}
-      />
-      <CaseTable
-        cases={result.items}
-        customers={namedCustomers}
-        filteredByCustomer={selectedCustomerId !== null}
-        filteredByStatus={selectedStatus !== null}
-        filteredBySearch={search !== ""}
-        listCustomerId={selectedCustomerId}
-        listStatus={selectedStatus}
-        listSearch={search}
-        listPage={page}
-      />
-      <ListPagination
-        page={page}
-        pageSize={result.pageSize}
-        totalCount={result.totalCount}
-        previousHref={casesPageHref(
-          selectedCustomerId,
-          selectedStatus,
-          search || null,
-          page <= 2 ? null : page - 1,
-        )}
-        nextHref={casesPageHref(
-          selectedCustomerId,
-          selectedStatus,
-          search || null,
-          page + 1,
-        )}
-      />
+      <div className="crm-list-layout">
+        <div className="crm-create-column">{customers.length === 0 ? <NoCustomers /> : <CaseForm customers={namedCustomers} />}</div>
+        <section className="crm-records-panel" aria-label="Cases list">
+          <CaseFilter
+            key={`${selectedCustomerId ?? ""}-${selectedStatus ?? ""}-${search}`}
+            customers={namedCustomers}
+            selectedCustomerId={selectedCustomerId}
+            selectedStatus={selectedStatus}
+            search={search}
+          />
+          <CaseTable
+            cases={result.items}
+            customers={namedCustomers}
+            filteredByCustomer={selectedCustomerId !== null}
+            filteredByStatus={selectedStatus !== null}
+            filteredBySearch={search !== ""}
+            listCustomerId={selectedCustomerId}
+            listStatus={selectedStatus}
+            listSearch={search}
+            listPage={page}
+          />
+          <ListPagination
+            page={page}
+            pageSize={result.pageSize}
+            totalCount={result.totalCount}
+            previousHref={casesPageHref(
+              selectedCustomerId,
+              selectedStatus,
+              search || null,
+              page <= 2 ? null : page - 1,
+            )}
+            nextHref={casesPageHref(
+              selectedCustomerId,
+              selectedStatus,
+              search || null,
+              page + 1,
+            )}
+          />
+        </section>
+      </div>
     </main>
   );
 }

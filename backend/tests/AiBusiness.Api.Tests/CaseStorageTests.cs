@@ -74,6 +74,25 @@ public class CaseStorageTests : IDisposable
     }
 
     [Fact]
+    public async Task DeleteCase_WithTask_IsRejectedAndCaseRemains()
+    {
+        var customer = await AddCustomer();
+        var work = new Case { CustomerId = customer.Id, Title = "Booking page" };
+        _database.Cases.Add(work);
+        await _database.SaveChangesAsync();
+        _database.CaseTasks.Add(new CaseTask { CaseId = work.Id, Title = "Design page" });
+        await _database.SaveChangesAsync();
+        _database.ChangeTracker.Clear();
+
+        var storedCase = await _database.Cases.SingleAsync(c => c.Id == work.Id);
+        _database.Cases.Remove(storedCase);
+        await Assert.ThrowsAsync<DbUpdateException>(() => _database.SaveChangesAsync());
+
+        Assert.NotNull(await _database.Cases.AsNoTracking().SingleOrDefaultAsync(c => c.Id == work.Id));
+        Assert.Equal(1, await _database.CaseTasks.AsNoTracking().CountAsync());
+    }
+
+    [Fact]
     public async Task Save_UnknownCustomer_IsRejected()
     {
         _database.Cases.Add(new Case { CustomerId = 999, Title = "Missing customer" });

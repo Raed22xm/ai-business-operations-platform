@@ -29,7 +29,7 @@ test.describe("search, filters, and delete feedback", () => {
       );
       expect(page.url()).toContain("page=2");
 
-      await page.getByLabel("Search").fill(`${marker} 01`);
+      await page.getByLabel("Search", { exact: true }).fill(`${marker} 01`);
       await page.getByRole("button", { name: "Search", exact: true }).click();
 
       await expect(page.getByRole("link", { name: `${marker} 01` })).toBeVisible();

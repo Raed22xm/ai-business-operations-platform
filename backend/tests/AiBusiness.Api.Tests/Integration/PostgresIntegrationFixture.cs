@@ -29,7 +29,8 @@ public sealed class PostgresIntegrationFixture : IAsyncLifetime
 
         await using var scope = _factory.Services.CreateAsyncScope();
         var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await database.Database.ExecuteSqlRawAsync("""TRUNCATE TABLE "Cases", "Customers" RESTART IDENTITY CASCADE;""");
+        await database.Database.ExecuteSqlRawAsync(
+            """TRUNCATE TABLE "CaseTasks", "Cases", "Customers" RESTART IDENTITY CASCADE;""");
     }
 
     public void RequireAvailable()

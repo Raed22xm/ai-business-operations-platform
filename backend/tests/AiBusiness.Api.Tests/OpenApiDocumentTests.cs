@@ -74,6 +74,17 @@ public sealed class OpenApiDocumentTests : IClassFixture<OpenApiDocumentTests.Op
         Assert.Contains("cases", Text(conflict, "description"), StringComparison.OrdinalIgnoreCase);
         Assert.True(customerDelete.GetProperty("responses").TryGetProperty("204", out _));
         Assert.True(customerDelete.GetProperty("responses").TryGetProperty("404", out _));
+
+        var caseDelete = Operation(doc, "/api/cases/{id}", "delete");
+        Assert.True(caseDelete.GetProperty("responses").TryGetProperty("409", out var caseConflict));
+        Assert.Contains("tasks", Text(caseConflict, "description"), StringComparison.OrdinalIgnoreCase);
+
+        Assert.True(doc.GetProperty("paths").TryGetProperty("/api/tasks", out _));
+        Assert.True(doc.GetProperty("paths").TryGetProperty("/api/tasks/{id}", out _));
+        var taskCreate = Operation(doc, "/api/tasks", "post");
+        Assert.True(taskCreate.GetProperty("responses").TryGetProperty("201", out var createdTask));
+        Assert.True(createdTask.GetProperty("headers").TryGetProperty("Location", out _));
+        Assert.Contains("Todo", Text(taskCreate, "description"), StringComparison.Ordinal);
     }
 
     [Fact]

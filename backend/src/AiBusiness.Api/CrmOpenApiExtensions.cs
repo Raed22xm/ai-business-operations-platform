@@ -76,6 +76,49 @@ public static class CrmOpenApiExtensions
                 "Required. Exactly one of: Open, InProgress, Closed.");
             DescribeProperty(schema, "createdAt", "Ignored. Creation time cannot change.");
         }
+        else if (type == typeof(CaseTask))
+        {
+            schema.Description =
+                "Task within a case. On create, `caseId` and `title` are required; `description` and `dueDate` are optional. "
+                + "`id`, `status`, and `createdAt` are server-controlled. Create always stores status `Todo`.";
+            schema.Required ??= new HashSet<string>();
+            schema.Required.Add("caseId");
+            schema.Required.Add("title");
+            DescribeProperty(schema, "id", "Server-assigned identifier. Ignored on create.");
+            DescribeProperty(schema, "caseId", "Required on create. Must reference an existing case.");
+            DescribeProperty(schema, "title", "Required. 1–200 characters after trim.");
+            DescribeProperty(schema, "description", "Optional. Blank or whitespace is stored as null.");
+            DescribeProperty(schema, "dueDate", "Optional date without time (YYYY-MM-DD). Null clears on update.");
+            DescribeProperty(
+                schema,
+                "status",
+                "One of Todo, InProgress, Done. Create always forces Todo; clients cannot set status on create.");
+            DescribeProperty(schema, "createdAt", "UTC timestamp set by the server on create.");
+        }
+        else if (type == typeof(CaseTaskUpdate))
+        {
+            schema.Description =
+                "Task update body. Only `title`, `description`, `dueDate`, and `status` are applied. "
+                + "`id`, `caseId`, and `createdAt` in the body are ignored. "
+                + "`status` must be exactly Todo, InProgress, or Done (case-sensitive).";
+            schema.Required ??= new HashSet<string>();
+            schema.Required.Add("title");
+            schema.Required.Add("status");
+            DescribeProperty(schema, "id", "Ignored. The path `{id}` identifies the task.");
+            DescribeProperty(schema, "caseId", "Ignored. Case ownership cannot change.");
+            DescribeProperty(schema, "title", "Required. 1–200 characters after trim.");
+            DescribeProperty(schema, "description", "Optional. Blank or whitespace clears the description.");
+            DescribeProperty(schema, "dueDate", "Optional. Null clears the due date.");
+            DescribeProperty(
+                schema,
+                "status",
+                "Required. Exactly one of: Todo, InProgress, Done.");
+            DescribeProperty(schema, "createdAt", "Ignored. Creation time cannot change.");
+        }
+        else if (type == typeof(CaseTaskStatus))
+        {
+            schema.Description = "Allowed values: Todo, InProgress, Done.";
+        }
         else if (type == typeof(CaseStatus))
         {
             schema.Description = "Allowed values: Open, InProgress, Closed.";
@@ -99,6 +142,18 @@ public static class CrmOpenApiExtensions
             DescribeProperty(schema, "page", "1-based page number (default 1).");
             DescribeProperty(schema, "pageSize", "Page size (default 20, maximum 100).");
             DescribeProperty(schema, "totalCount", "Total matching rows before paging.");
+        }
+        else if (type == typeof(CaseSummaryResponse))
+        {
+            schema.Description =
+                "Case summary for operator review. Factual fields are derived from saved case/customer/task data; "
+                + "`suggestedNextAction` is a model suggestion. When OpenAI is not configured, `source` is `mock` "
+                + "and `setupHint` explains how to set OpenAI:ApiKey.";
+        }
+        else if (type == typeof(DraftResponseResponse))
+        {
+            schema.Description =
+                "Editable customer reply draft. Does not send messages. Uses OpenAI when configured, otherwise mock.";
         }
 
         return Task.CompletedTask;
@@ -134,6 +189,15 @@ public static class CrmOpenApiExtensions
             conflictResponse.Description ??=
                 "Customer still has cases and cannot be deleted. Detail: "
                 + "\"This customer has cases and cannot be deleted.\" Records are unchanged.";
+        }
+
+        if (IsCaseDelete(context)
+            && operation.Responses.TryGetValue("409", out var caseConflict)
+            && caseConflict is OpenApiResponse caseConflictResponse)
+        {
+            caseConflictResponse.Description ??=
+                "Case still has tasks and cannot be deleted. Detail: "
+                + "\"This case has tasks and cannot be deleted.\" Records are unchanged.";
         }
 
         if (TryGetListItemType(context, out var itemType)
@@ -192,7 +256,8 @@ public static class CrmOpenApiExtensions
         var path = context.Description.RelativePath ?? string.Empty;
         return string.Equals(method, "POST", StringComparison.OrdinalIgnoreCase)
             && (path.Equals("api/customers", StringComparison.OrdinalIgnoreCase)
-                || path.Equals("api/cases", StringComparison.OrdinalIgnoreCase));
+                || path.Equals("api/cases", StringComparison.OrdinalIgnoreCase)
+                || path.Equals("api/tasks", StringComparison.OrdinalIgnoreCase));
     }
 
     private static bool IsCustomerDelete(OpenApiOperationTransformerContext context)
@@ -201,6 +266,14 @@ public static class CrmOpenApiExtensions
         var path = context.Description.RelativePath ?? string.Empty;
         return string.Equals(method, "DELETE", StringComparison.OrdinalIgnoreCase)
             && path.Equals("api/customers/{id}", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsCaseDelete(OpenApiOperationTransformerContext context)
+    {
+        var method = context.Description.HttpMethod;
+        var path = context.Description.RelativePath ?? string.Empty;
+        return string.Equals(method, "DELETE", StringComparison.OrdinalIgnoreCase)
+            && path.Equals("api/cases/{id}", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsPagedResult(Type type, out string itemName)

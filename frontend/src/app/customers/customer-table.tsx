@@ -37,7 +37,7 @@ export function CustomerTable({
           onClose={() => setDeleting(null)}
         />
       ) : null}
-      <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
+      <div className="crm-table-scroll">
         <table className="w-full min-w-[40rem] border-collapse text-left text-sm">
           <thead className="bg-zinc-50 text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400">
             <tr>

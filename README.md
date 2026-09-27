@@ -2,7 +2,7 @@
 
 An enterprise-ready, AI-driven operations platform designed to automate and orchestrate core business workflows, starting with comprehensive Customer Relationship Management (CRM) and extensible agentic operations.
 
-**Version 1 so far:** customers, cases, and an overview dashboard. A case is work requested by one existing customer (for example, “Studio 22 needs a booking page”). Each case must belong to a customer that already exists. Tasks, attachments, and AI features are not built yet.
+**Version 1 so far:** customers, cases, tasks on case details, and an overview dashboard with an AI assistant for case summaries and draft replies (OpenAI via the backend, or a local mock when no API key is configured). A case is work requested by one existing customer (for example, “Studio 22 needs a booking page”). Each case must belong to a customer that already exists. Each task belongs to one case. Attachments are not built yet.
 
 ---
 
@@ -41,9 +41,9 @@ An enterprise-ready, AI-driven operations platform designed to automate and orch
 │   ├── AiBusiness.slnx                     # .NET Solution file
 │   ├── src/
 │   │   └── AiBusiness.Api/                 # ASP.NET Core Web API project
-│   │       ├── Controllers/                # Customers, Cases, Dashboard, Health
+│   │       ├── Controllers/                # Customers, Cases, Tasks, Dashboard, Health
 │   │       ├── Data/                       # AppDbContext & EF Core migrations
-│   │       ├── Models/                     # Domain models (Customer, Case, DashboardSummary)
+│   │       ├── Models/                     # Domain models (Customer, Case, CaseTask, DashboardSummary)
 │   │       └── Program.cs                  # Service bootstrapping & OpenAPI
 │   └── tests/
 │       └── AiBusiness.Api.Tests/           # xUnit test suite
@@ -92,7 +92,15 @@ An enterprise-ready, AI-driven operations platform designed to automate and orch
    ```
    Use your own database host, name, username, and password. Do not commit real credentials.
 
-4. **Run the API server:**
+4. **Configure OpenAI (optional for local mock):**
+   ```bash
+   dotnet user-secrets set --project src/AiBusiness.Api "OpenAI:ApiKey" "your-openai-api-key"
+   # Optional — defaults shown
+   dotnet user-secrets set --project src/AiBusiness.Api "OpenAI:Model" "gpt-4o-mini"
+   ```
+   Or set environment variables `OpenAI__ApiKey` and `OpenAI__Model`. Never put the API key in frontend code, logs, or committed files. If `OpenAI:ApiKey` is missing, the API uses a deterministic mock provider and returns `source: "mock"` with a setup hint.
+
+5. **Run the API server:**
    ```bash
    dotnet run --project src/AiBusiness.Api
    ```
@@ -130,15 +138,18 @@ An enterprise-ready, AI-driven operations platform designed to automate and orch
 
 ---
 
-## Overview
+## Dashboard
 
 Open [http://localhost:3000/](http://localhost:3000/).
 
-- Shows total customer and case counts, plus case counts by status (Open, In progress, Closed).
-- Shared navigation includes **Overview**, **Customers**, and **Cases** on list and details pages.
-- Total cards link to `/customers` and `/cases`. Status cards link to `/cases` with the matching status filter (for example `/cases?status=Open`).
-- Loading, empty (“No customers or cases yet”), and API failure (with **Try again**) are handled separately. Failed requests do not show zero counts.
-- No charts, trends, percentages, or invented activity data.
+- Three columns connect the customer list, selected case and tasks, and assistant/KPI panels. Selecting a customer or case keeps the selection in the URL. The top bar searches customers.
+- Shared navigation includes **Dashboard**, **Customers**, and **Cases**. It becomes a keyboard-accessible menu on mobile.
+- KPI tiles show saved customer/case counts. Status links open the matching case filter.
+- The case timeline shows the actual creation time and current tasks. The case brief can be copied from saved data.
+- **AI assistant:** With a case selected, **Generate summary** and **Draft response** call the backend. Results appear in an editable panel with **Copy**, loading text, errors, and **Retry**. Duplicate clicks are blocked while a request is in flight; output clears when the selected case changes. **Schedule follow-up** and **Escalation check** stay disabled and marked Coming soon.
+- Generation sends the selected case’s title, description, and status, the customer’s name/company/email, and task titles/statuses/due dates/descriptions to the configured OpenAI-compatible provider (or the local mock). Treat that as sharing operational data with the provider.
+- Loading, empty results, and API failure (with **Try again**) are handled separately. Failed requests do not show zero counts.
+- Customers, Cases, details, and task forms share the dashboard's charcoal/green design. Desktop lists place the creation form beside the records; narrow screens stack the panels and scroll tables within their own area.
 
 ---
 
@@ -206,6 +217,10 @@ Open a case from the list, or go directly to [http://localhost:3000/cases/1](htt
 - Loading, missing case (`404`), and API failure (with **Try again**) are handled separately.
 - **Edit case** reuses the same edit form as the list: title, description, and status only. Customer, id, and created time stay unchanged. Failed saves keep entered values; successful saves refresh the details and show a confirmation. Cancel leaves saved data unchanged.
 - Deletion is not available on the details page yet.
+- **Tasks:** Loads `GET /api/tasks?caseId={id}` under the case details (case fields stay visible while tasks load, show empty, or fail with **Try again**). The table shows Title, Status (`To do`, `In progress`, `Done`), and Due date (date-only values displayed without timezone conversion; empty due dates show as —).
+- **Add task:** Title required; optional Description and Due date. The open case supplies `caseId`; new tasks start as To do. Failed creates keep entered values and disable repeat submits while pending. Successful creates clear the form, refresh the list, and show a confirmation.
+- **Edit task:** Change Title, Description, Due date, and Status. Optional fields can be cleared. Cancel leaves saved data unchanged. Failed saves keep entered values.
+- **Delete task:** Confirm in an accessible dialog that names the task. Cancel closes without deleting. Success removes the row and shows confirmation outside the closed dialog; failure keeps the row and shows the error. The case and other tasks stay unchanged.
 
 ---
 
@@ -259,6 +274,22 @@ curl -s -X PUT http://localhost:5222/api/cases/{caseId} \
 # Delete case then customer
 curl -s -o /dev/null -w '%{http_code}\n' -X DELETE http://localhost:5222/api/cases/{caseId}
 curl -s -o /dev/null -w '%{http_code}\n' -X DELETE http://localhost:5222/api/customers/{customerId}
+
+# Create task (always stored as Todo; replace {caseId})
+curl -s -X POST http://localhost:5222/api/tasks \
+  -H 'Content-Type: application/json' \
+  -d '{"caseId":{caseId},"title":"Design the booking page","description":"Optional","dueDate":"2026-10-15"}'
+
+# List / update / delete task (replace {taskId})
+curl -s 'http://localhost:5222/api/tasks?caseId={caseId}&status=Todo'
+curl -s -X PUT http://localhost:5222/api/tasks/{taskId} \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"Design the booking page","description":null,"dueDate":null,"status":"InProgress"}'
+curl -s -o /dev/null -w '%{http_code}\n' -X DELETE http://localhost:5222/api/tasks/{taskId}
+
+# AI assistant (replace {caseId}; loads case/customer/tasks server-side)
+curl -s -X POST http://localhost:5222/api/assistant/cases/{caseId}/summary
+curl -s -X POST http://localhost:5222/api/assistant/cases/{caseId}/draft-response
 ```
 
 ### Dashboard (`/api/dashboard`)
@@ -266,6 +297,15 @@ curl -s -o /dev/null -w '%{http_code}\n' -X DELETE http://localhost:5222/api/cus
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
 | `GET` | `/api/dashboard/summary` | Returns count totals calculated in the database: `totalCustomers`, `totalCases`, `openCases`, `inProgressCases`, `closedCases`. Empty tables return zeros. |
+
+### Assistant (`/api/assistant`)
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `POST` | `/api/assistant/cases/{caseId}/summary` | Loads the case, customer, and tasks server-side and returns a short summary (`requestSummary`, `status`, `outstandingTasks`, `suggestedNextAction`, `formattedText`). Facts come from saved data; the suggested next action is labeled as a suggestion. Uses OpenAI when `OpenAI:ApiKey` is set; otherwise a mock (`source: "mock"`) with `setupHint`. `404` if the case is missing; `502` on provider failure; `504` on timeout. |
+| `POST` | `/api/assistant/cases/{caseId}/draft-response` | Same data load; returns editable `draftText` for review/copy (does not send messages). Same status codes and mock behavior as summary. |
+
+**Privacy:** these endpoints send case title/description/status, customer name/company/email, and task title/description/status/due date to the provider. Do not use production secrets in the frontend.
 
 ### Customers (`/api/customers`)
 
@@ -285,7 +325,17 @@ curl -s -o /dev/null -w '%{http_code}\n' -X DELETE http://localhost:5222/api/cus
 | `GET` | `/api/cases/{id}` | Returns one case (`200`), or `404` if missing. |
 | `POST` | `/api/cases` | Creates a case for an existing customer. Forces status `Open`. Returns `201 Created` with a `Location` header, or `400` for invalid input. |
 | `PUT` | `/api/cases/{id}` | Updates title, description, and status only (`200`). Returns `400` for invalid input (including invalid status), or `404` if missing. Does not change `id`, `customerId`, or `createdAt`. |
-| `DELETE` | `/api/cases/{id}` | Deletes that case (`204`), or `404` if missing. Leaves the customer and other cases unchanged. |
+| `DELETE` | `/api/cases/{id}` | Deletes that case (`204`), or `404` if missing. Returns `409 Conflict` with detail `This case has tasks and cannot be deleted.` when the case still has tasks. Leaves the customer and other cases unchanged. |
+
+### Tasks (`/api/tasks`)
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/api/tasks` | Returns an array of tasks, newest `createdAt` first (then highest `id`). Optional `?caseId=` and/or `?status=` (`Todo`, `InProgress`, or `Done`, case-sensitive). Filters combine. Invalid status returns `400`. |
+| `GET` | `/api/tasks/{id}` | Returns one task (`200`), or `404` if missing. |
+| `POST` | `/api/tasks` | Creates a task for an existing case. Forces status `Todo`. Required `caseId` and `title` (1–200 chars). Optional `description` and `dueDate` (date only). Returns `201 Created` with a `Location` header, or `400` for invalid input. Ignores submitted `id`, `status`, and `createdAt`. |
+| `PUT` | `/api/tasks/{id}` | Updates `title`, `description`, `dueDate`, and `status` only (`200`). Null/blank description or null `dueDate` clears those fields. Returns `400` for invalid input, or `404` if missing. Does not change `id`, `caseId`, or `createdAt`. |
+| `DELETE` | `/api/tasks/{id}` | Deletes that task (`204`), or `404` if missing. Leaves the case and other tasks unchanged. |
 
 ---
 
@@ -331,7 +381,7 @@ dotnet test backend
 
 ### Browser regression suite (Playwright)
 
-Focused Chromium checks for customers/cases flows. Global setup starts a **separate** disposable PostgreSQL container (`aibusiness_browser_e2e`), API on `127.0.0.1:5230`, builds the frontend, and serves it with `next start` on `localhost:3100` (so it does not conflict with `next dev` on 3000). It never resets `aibusiness_customers_dev` and does not stop the development servers on ports 3000/5222/5434.
+Focused Chromium checks for customers/cases flows and case-details task CRUD (including mocked delay/failure checks through an e2e-only API proxy on port 5230 in front of the disposable API on 5231). Global setup starts a **separate** disposable PostgreSQL container (`aibusiness_browser_e2e`), API behind that proxy, builds the frontend, and serves it with `next start` on `localhost:3100` (so it does not conflict with `next dev` on 3000). It never resets `aibusiness_customers_dev` and does not stop the development servers on ports 3000/5222/5434.
 
 **Prerequisites:** Node.js 20+, .NET 10 SDK (`~/.dotnet/dotnet`), Docker, Playwright Chromium (`npx playwright install chromium`).
 
@@ -357,6 +407,8 @@ npm run build
 ## Current limitations
 
 - No authentication or authorization.
-- No tasks on cases.
+- No standalone tasks page or dashboard task widgets.
 - No attachments.
 - No AI features yet.
+- Browser e2e does not cover mocked network-drop failures for task create/edit/delete (HTTP error mocks are covered).
+- Manual screen-reader verification of task live regions and dialog announcements is not part of the automated suite.

@@ -84,6 +84,42 @@ export async function deleteCaseViaApi(
   await request.delete(`${apiURL}/api/cases/${id}`);
 }
 
+export async function createTaskViaApi(
+  request: APIRequestContext,
+  apiURL: string,
+  task: {
+    caseId: number;
+    title: string;
+    description?: string | null;
+    dueDate?: string | null;
+  },
+): Promise<{ id: number; title: string; caseId: number; status: string; dueDate: string | null }> {
+  const response = await request.post(`${apiURL}/api/tasks`, {
+    data: {
+      caseId: task.caseId,
+      title: task.title,
+      description: task.description ?? null,
+      dueDate: task.dueDate ?? null,
+    },
+  });
+  expect(response.ok()).toBeTruthy();
+  return (await response.json()) as {
+    id: number;
+    title: string;
+    caseId: number;
+    status: string;
+    dueDate: string | null;
+  };
+}
+
+export async function deleteTaskViaApi(
+  request: APIRequestContext,
+  apiURL: string,
+  id: number,
+): Promise<void> {
+  await request.delete(`${apiURL}/api/tasks/${id}`);
+}
+
 export async function fillCustomerForm(
   page: Page,
   values: { name: string; email: string; phone?: string; company?: string },

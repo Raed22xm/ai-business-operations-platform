@@ -39,6 +39,7 @@ export default async function globalTeardown(): Promise<void> {
   }
 
   killPid(state.frontendPid);
+  killPid(state.proxyPid);
   killPid(state.apiPid);
 
   const container = state.containerName ?? E2E_CONTAINER_NAME;

@@ -1,6 +1,7 @@
 using AiBusiness.Api.Controllers;
 using AiBusiness.Api.Data;
 using AiBusiness.Api.Models;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -556,6 +557,28 @@ public class CasesControllerTests : IDisposable
         var found = await GetCase(created.Id);
         Assert.Equal("Keep me", found.Title);
         Assert.Equal("Stay", found.Description);
+    }
+
+    [Fact]
+    public async Task Delete_CaseWithTasks_ReturnsConflict_AndKeepsCaseAndTask()
+    {
+        var customer = await AddCustomer();
+        var created = await CreateCase(CreateController(), customer.Id, "Keep me", "Stay");
+        _database.CaseTasks.Add(new CaseTask
+        {
+            CaseId = created.Id,
+            Title = "Design the booking page",
+        });
+        await _database.SaveChangesAsync();
+
+        var result = await CreateController().Delete(created.Id);
+        var conflict = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(StatusCodes.Status409Conflict, conflict.StatusCode);
+        var problem = Assert.IsType<ProblemDetails>(conflict.Value);
+        Assert.Equal("This case has tasks and cannot be deleted.", problem.Detail);
+
+        Assert.NotNull(await _database.Cases.AsNoTracking().SingleOrDefaultAsync(row => row.Id == created.Id));
+        Assert.Equal(1, await _database.CaseTasks.AsNoTracking().CountAsync());
     }
 
     [Fact]

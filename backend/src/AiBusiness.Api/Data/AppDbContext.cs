@@ -12,6 +12,7 @@ public class AppDbContext : DbContext
 
     public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<Case> Cases => Set<Case>();
+    public DbSet<CaseTask> CaseTasks => Set<CaseTask>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -34,6 +35,22 @@ public class AppDbContext : DbContext
                 .HasForeignKey(c => c.CustomerId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
+
+        modelBuilder.Entity<CaseTask>(task =>
+        {
+            task.ToTable("CaseTasks");
+            task.Property(t => t.Title).IsRequired().HasMaxLength(200);
+            task.Property(t => t.Description);
+            task.Property(t => t.DueDate);
+            task.Property(t => t.Status)
+                .HasConversion<string>()
+                .HasMaxLength(20)
+                .HasDefaultValue(CaseTaskStatus.Todo);
+            task.HasOne(t => t.Case)
+                .WithMany()
+                .HasForeignKey(t => t.CaseId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
     }
 
     private void ApplyCaseRules()
@@ -49,6 +66,20 @@ public class AppDbContext : DbContext
                 entry.Property(c => c.CreatedAt).CurrentValue =
                     entry.Property(c => c.CreatedAt).OriginalValue;
                 entry.Property(c => c.CreatedAt).IsModified = false;
+            }
+        }
+
+        foreach (var entry in ChangeTracker.Entries<CaseTask>())
+        {
+            if (entry.State == EntityState.Added)
+            {
+                entry.Entity.CreatedAt = UtcNow();
+            }
+            else if (entry.State == EntityState.Modified)
+            {
+                entry.Property(t => t.CreatedAt).CurrentValue =
+                    entry.Property(t => t.CreatedAt).OriginalValue;
+                entry.Property(t => t.CreatedAt).IsModified = false;
             }
         }
     }

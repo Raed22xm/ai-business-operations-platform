@@ -58,7 +58,7 @@ export function CustomerForm() {
       action={formAction}
       noValidate
       aria-labelledby="add-customer-heading"
-      className="grid gap-4 rounded-lg border border-zinc-200 p-4 sm:grid-cols-2 dark:border-zinc-800"
+      className="crm-form grid gap-4 rounded-lg border border-zinc-200 p-4 sm:grid-cols-2 dark:border-zinc-800"
     >
       <h2 id="add-customer-heading" className="text-lg font-semibold sm:col-span-2">
         Add customer

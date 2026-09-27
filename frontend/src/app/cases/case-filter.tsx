@@ -32,7 +32,7 @@ export function CaseFilter({
 
   return (
     <form
-      className="flex flex-col gap-4"
+      className="crm-filters flex flex-col gap-4"
       onSubmit={(event) => {
         event.preventDefault();
         router.push(

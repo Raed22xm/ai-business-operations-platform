@@ -57,3 +57,6 @@ frontend/.env*.local
 .cursor/chats/
 .cursor/browser-logs/
 .cursor/ai-tracking/
+
+# Graphify cache
+graphify-out/cache/
