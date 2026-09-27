@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { updateCaseAction } from "@/app/cases/actions";
 import { initialCaseFormState } from "@/lib/case-form-state";
-import type { CaseStatus, CustomerCase } from "@/lib/cases";
+import type { CaseStatus, CustomerCase } from "@/lib/cases-shared";
 
 const statuses: Array<{ value: CaseStatus; label: string }> = [
   { value: "Open", label: "Open" },

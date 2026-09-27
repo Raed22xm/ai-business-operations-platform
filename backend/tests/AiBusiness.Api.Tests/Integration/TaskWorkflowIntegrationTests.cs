@@ -27,7 +27,7 @@ public sealed class TaskWorkflowIntegrationTests
     {
         _fixture.RequireAvailable();
         await _fixture.ResetDataAsync();
-        using var client = _fixture.CreateClient();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
         var marker = $"task-{Guid.NewGuid():N}"[..12];
 
         var customerResponse = await client.PostAsJsonAsync(

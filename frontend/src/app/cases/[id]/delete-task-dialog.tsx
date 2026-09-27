@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useRef } from "react";
 import { deleteTaskAction } from "@/app/cases/[id]/task-actions";
 import { initialDeleteTaskState } from "@/lib/task-form-state";
-import type { CaseTask } from "@/lib/tasks";
+import type { CaseTask } from "@/lib/tasks-shared";
 
 export function DeleteTaskDialog({
   caseId,

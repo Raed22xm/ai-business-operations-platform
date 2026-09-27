@@ -14,6 +14,13 @@ function readState(): E2EState {
   return JSON.parse(fs.readFileSync(statePath, "utf8")) as E2EState;
 }
 
+function authHeaders(state: E2EState): Record<string, string> {
+  if (!state.accessToken) {
+    return {};
+  }
+  return { Authorization: `Bearer ${state.accessToken}` };
+}
+
 export const test = base.extend<{ e2e: E2EState }>({
   e2e: async ({}, use, testInfo) => {
     const state = readState();
@@ -34,8 +41,11 @@ export async function createCustomerViaApi(
   request: APIRequestContext,
   apiURL: string,
   customer: { name: string; email: string; phone?: string | null; company?: string | null },
+  accessToken?: string,
 ): Promise<{ id: number; name: string; email: string }> {
+  const token = accessToken ?? readState().accessToken;
   const response = await request.post(`${apiURL}/api/customers`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     data: {
       name: customer.name,
       email: customer.email,
@@ -51,8 +61,11 @@ export async function createCaseViaApi(
   request: APIRequestContext,
   apiURL: string,
   work: { customerId: number; title: string; description?: string | null },
+  accessToken?: string,
 ): Promise<{ id: number; title: string; customerId: number; status: string }> {
+  const token = accessToken ?? readState().accessToken;
   const response = await request.post(`${apiURL}/api/cases`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     data: {
       customerId: work.customerId,
       title: work.title,
@@ -72,16 +85,24 @@ export async function deleteCustomerViaApi(
   request: APIRequestContext,
   apiURL: string,
   id: number,
+  accessToken?: string,
 ): Promise<void> {
-  await request.delete(`${apiURL}/api/customers/${id}`);
+  const token = accessToken ?? readState().accessToken;
+  await request.delete(`${apiURL}/api/customers/${id}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
 }
 
 export async function deleteCaseViaApi(
   request: APIRequestContext,
   apiURL: string,
   id: number,
+  accessToken?: string,
 ): Promise<void> {
-  await request.delete(`${apiURL}/api/cases/${id}`);
+  const token = accessToken ?? readState().accessToken;
+  await request.delete(`${apiURL}/api/cases/${id}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
 }
 
 export async function createTaskViaApi(
@@ -92,14 +113,26 @@ export async function createTaskViaApi(
     title: string;
     description?: string | null;
     dueDate?: string | null;
+    priority?: "Low" | "Normal" | "High";
   },
-): Promise<{ id: number; title: string; caseId: number; status: string; dueDate: string | null }> {
+  accessToken?: string,
+): Promise<{
+  id: number;
+  title: string;
+  caseId: number;
+  status: string;
+  priority: string;
+  dueDate: string | null;
+}> {
+  const token = accessToken ?? readState().accessToken;
   const response = await request.post(`${apiURL}/api/tasks`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     data: {
       caseId: task.caseId,
       title: task.title,
       description: task.description ?? null,
       dueDate: task.dueDate ?? null,
+      ...(task.priority !== undefined ? { priority: task.priority } : {}),
     },
   });
   expect(response.ok()).toBeTruthy();
@@ -108,6 +141,7 @@ export async function createTaskViaApi(
     title: string;
     caseId: number;
     status: string;
+    priority: string;
     dueDate: string | null;
   };
 }
@@ -116,8 +150,12 @@ export async function deleteTaskViaApi(
   request: APIRequestContext,
   apiURL: string,
   id: number,
+  accessToken?: string,
 ): Promise<void> {
-  await request.delete(`${apiURL}/api/tasks/${id}`);
+  const token = accessToken ?? readState().accessToken;
+  await request.delete(`${apiURL}/api/tasks/${id}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
 }
 
 export async function fillCustomerForm(
@@ -140,3 +178,9 @@ export async function confirmDeleteDialog(page: Page): Promise<void> {
   await expect(dialog).toBeVisible();
   await dialog.getByRole("button", { name: /^Delete$/ }).click();
 }
+
+export function bearerHeaders(e2e: E2EState): Record<string, string> | undefined {
+  return e2e.accessToken ? { Authorization: `Bearer ${e2e.accessToken}` } : undefined;
+}
+
+export { authHeaders };

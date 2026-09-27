@@ -190,6 +190,9 @@ public sealed class OpenApiDocumentTests : IClassFixture<OpenApiDocumentTests.Op
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             builder.UseSetting("ConnectionStrings:DefaultConnection", ConnectionString);
+            builder.UseSetting("Auth:Username", "openapi-check");
+            builder.UseSetting("Auth:Password", "openapi-check-password");
+            builder.UseSetting("Auth:JwtSigningKey", "openapi-document-signing-key-32ch!");
             builder.UseEnvironment("Development");
             builder.ConfigureServices(services =>
             {

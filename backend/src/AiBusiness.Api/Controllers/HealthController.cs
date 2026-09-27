@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AiBusiness.Api.Controllers;
@@ -6,6 +7,7 @@ namespace AiBusiness.Api.Controllers;
 [Route("api/health")]
 public class HealthController : ControllerBase
 {
+    [AllowAnonymous]
     [HttpGet]
     public IActionResult Get()
     {

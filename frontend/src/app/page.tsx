@@ -6,8 +6,9 @@ import { DashboardLoading } from "@/app/dashboard-loading";
 import { CasePicker } from "@/app/dashboard-tools";
 import { caseStatusLabel, getCases, type CustomerCase } from "@/lib/cases";
 import { getCustomers, type Customer } from "@/lib/customers";
-import { getDashboardSummary, type DashboardSummary } from "@/lib/dashboard";
+import { getDashboardSummary, type DashboardSummary, type OutstandingTask } from "@/lib/dashboard";
 import { getTasksForCase, type CaseTask } from "@/lib/tasks";
+import { formatTaskDueDate, isTaskOverdue, taskPriorityLabel, taskStatusLabel } from "@/lib/tasks-shared";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Dashboard" };
@@ -32,7 +33,7 @@ async function Dashboard({ searchParams }: { searchParams: Promise<Query> }) {
   return <main className="operations-dashboard" aria-label="Operations dashboard">
     <h1 className="sr-only">Dashboard</h1>
     <CustomerPanel customers={customers} cases={cases} selectedCustomer={selectedCustomer} query={query} total={summary.totalCustomers} />
-    <CasePanel customer={selectedCustomer} work={selectedCase} cases={customerCases} tasks={tasks} tasksUnavailable={tasksUnavailable} query={query} />
+    <CasePanel customer={selectedCustomer} work={selectedCase} cases={customerCases} tasks={tasks} tasksUnavailable={tasksUnavailable} query={query} businessTodayIso={summary.businessToday} />
     <div className="dashboard-right-column">
       <AssistantPanel
         key={selectedCase?.id ?? "no-case"}
@@ -64,7 +65,7 @@ function CustomerPanel({ customers, cases, selectedCustomer, query, total }: { c
   </section>;
 }
 
-function CasePanel({ customer, work, cases, tasks, tasksUnavailable, query }: { customer?: Customer; work?: CustomerCase; cases: CustomerCase[]; tasks: CaseTask[]; tasksUnavailable: boolean; query: Query }) {
+function CasePanel({ customer, work, cases, tasks, tasksUnavailable, query, businessTodayIso }: { customer?: Customer; work?: CustomerCase; cases: CustomerCase[]; tasks: CaseTask[]; tasksUnavailable: boolean; query: Query; businessTodayIso: string }) {
   return <section className="work-panel case-panel" aria-labelledby="case-panel-heading">
     <div className="panel-heading"><h2 id="case-panel-heading">Case details</h2>{work && <Link href={`/cases/${work.id}`} className="icon-button" aria-label="Open case details"><Ellipsis size={20} /></Link>}</div>
     {!work ? <div className="panel-empty case-empty"><ClipboardList size={33} /><h3>{customer ? "A fresh start" : "Your next case, in focus"}</h3><p>{customer ? `${customer.name} has no cases yet. Create one to start organising their work.` : "Select a customer to see their case and tasks here."}</p><Link className="workspace-button is-primary" href={customer ? `/cases?customerId=${customer.id}` : "/customers"}><Plus size={15} />{customer ? "Create a case" : "Add a customer"}</Link></div> : <>
@@ -78,7 +79,10 @@ function CasePanel({ customer, work, cases, tasks, tasksUnavailable, query }: { 
         </div>
         <div className="case-timeline" aria-label="Case creation and current tasks">
           <div className="timeline-entry is-complete"><span className="timeline-node"><Check size={10} /></span><div><strong>Case created</strong><time dateTime={work.createdAt}>{dateLabel(work.createdAt, true)} UTC</time></div></div>
-          {tasksUnavailable ? <div className="timeline-entry"><span className="timeline-node" /><div><strong>Tasks couldn’t be loaded</strong><Link href={`/cases/${work.id}`}>Open case to try again <ChevronRight size={12} /></Link></div></div> : tasks.length ? tasks.slice(0, 3).map((task) => <div key={task.id} className={`timeline-entry${task.status === "Done" ? " is-complete" : task.status === "InProgress" ? " is-current" : ""}`}><span className="timeline-node">{task.status === "Done" && <Check size={10} />}</span><div><strong>{task.title}</strong><span>{task.status === "Todo" ? "To do" : task.status === "InProgress" ? "In progress" : "Done"}{task.dueDate ? ` · Due ${task.dueDate}` : ""}</span></div></div>) : <div className="timeline-entry"><span className="timeline-node" /><div><strong>Ready for the next step</strong><span>No tasks added yet</span><Link href={`/cases/${work.id}`}>Add a task <Plus size={12} /></Link></div></div>}
+          {tasksUnavailable ? <div className="timeline-entry"><span className="timeline-node" /><div><strong>Tasks couldn’t be loaded</strong><Link href={`/cases/${work.id}`}>Open case to try again <ChevronRight size={12} /></Link></div></div> : tasks.length ? tasks.slice(0, 3).map((task) => {
+            const overdue = isTaskOverdue(task.dueDate, task.status, businessTodayIso);
+            return <div key={task.id} className={`timeline-entry${task.status === "Done" ? " is-complete" : task.status === "InProgress" ? " is-current" : ""}${overdue ? " is-overdue" : ""}`}><span className="timeline-node">{task.status === "Done" && <Check size={10} />}</span><div><strong>{task.title}</strong><span>{taskStatusLabel(task.status)} · <span className="task-priority-inline" data-priority={task.priority}>{taskPriorityLabel(task.priority)}</span>{task.dueDate ? ` · Due ${formatTaskDueDate(task.dueDate)}` : ""}{overdue ? <span className="task-overdue-inline"> · Overdue</span> : null}</span></div></div>;
+          }) : <div className="timeline-entry"><span className="timeline-node" /><div><strong>Ready for the next step</strong><span>No tasks added yet</span><Link href={`/cases/${work.id}`}>Add a task <Plus size={12} /></Link></div></div>}
         </div>
         <div className="case-note"><div className="case-note-label"><FileText size={14} />Case description</div><p>{work.description || "Add a description to give this case more context."}</p><Link href={`/cases/${work.id}`} className="workspace-button small-button">Open & edit<ArrowUpRight size={13} /></Link></div>
       </div>
@@ -89,12 +93,79 @@ function CasePanel({ customer, work, cases, tasks, tasksUnavailable, query }: { 
 
 function MetricsPanel({ summary }: { summary: DashboardSummary }) {
   const metrics = [
-    { label: "Active cases", value: summary.openCases + summary.inProgressCases, href: "/cases", caption: "Open + in progress" },
-    { label: "Customers", value: summary.totalCustomers, href: "/customers", caption: "In your workspace" },
-    { label: "In progress", value: summary.inProgressCases, href: "/cases?status=InProgress", caption: "Work underway" },
-    { label: "Closed cases", value: summary.closedCases, href: "/cases?status=Closed", caption: "Completed cases" },
+    { label: "Overdue tasks", value: summary.overdueTasks, href: "/tasks?due=overdue", caption: "Due before today", emphasize: summary.overdueTasks > 0 },
+    { label: "Due today", value: summary.dueTodayTasks, href: "/tasks?due=today", caption: "Not done yet", emphasize: false },
+    { label: "Active cases", value: summary.openCases + summary.inProgressCases, href: "/cases", caption: "Open + in progress", emphasize: false },
+    { label: "Customers", value: summary.totalCustomers, href: "/customers", caption: "In your workspace", emphasize: false },
   ];
-  return <section id="business-kpis" className="work-panel metrics-panel" aria-labelledby="business-kpis-heading"><div className="panel-heading"><h2 id="business-kpis-heading">Business KPIs</h2><span className="live-data"><span className="connection-dot" />Live</span></div><div className="metrics-grid">{metrics.map((metric) => <Link className="metric-tile" key={metric.label} href={metric.href}><span>{metric.label}<ArrowUpRight size={12} /></span><strong>{metric.value}</strong><small>{metric.caption}</small></Link>)}</div><div className="metrics-footer"><span>{summary.totalCases} total cases</span><Link href="/cases?status=Open">{summary.openCases} open<ChevronRight size={12} /></Link></div></section>;
+  return (
+    <section id="business-kpis" className="work-panel metrics-panel" aria-labelledby="business-kpis-heading">
+      <div className="panel-heading">
+        <h2 id="business-kpis-heading">Business KPIs</h2>
+        <span className="live-data"><span className="connection-dot" />Live · {summary.businessTimeZone}</span>
+      </div>
+      <div className="metrics-grid">
+        {metrics.map((metric) => (
+          <Link
+            className={`metric-tile${metric.emphasize ? " is-alert" : ""}`}
+            key={metric.label}
+            href={metric.href}
+          >
+            <span>{metric.label}<ArrowUpRight size={12} /></span>
+            <strong>{metric.value}</strong>
+            <small>{metric.caption}</small>
+          </Link>
+        ))}
+      </div>
+      <OutstandingTasksList tasks={summary.outstandingTasks} />
+      <div className="metrics-footer">
+        <span>{summary.totalCases} total cases</span>
+        <Link href="/cases?status=Open">{summary.openCases} open<ChevronRight size={12} /></Link>
+      </div>
+    </section>
+  );
+}
+
+function OutstandingTasksList({ tasks }: { tasks: OutstandingTask[] }) {
+  return (
+    <div className="outstanding-tasks" aria-labelledby="outstanding-tasks-heading">
+      <div className="outstanding-tasks-heading">
+        <h3 id="outstanding-tasks-heading">Outstanding tasks</h3>
+        <span>Earliest due first</span>
+      </div>
+      {tasks.length === 0 ? (
+        <p className="outstanding-empty">No open tasks with work left to do.</p>
+      ) : (
+        <ul className="outstanding-list">
+          {tasks.map((task) => (
+            <li key={task.id}>
+              <Link href={`/cases/${task.caseId}`} className="outstanding-item">
+                <span className="outstanding-item-main">
+                  <strong>{task.title}</strong>
+                  <span className="outstanding-case">{task.caseTitle}</span>
+                </span>
+                <span className="outstanding-due">
+                  {task.dueDate ? (
+                    <time dateTime={task.dueDate}>{formatTaskDueDate(task.dueDate)}</time>
+                  ) : (
+                    <span>No due date</span>
+                  )}
+                  <span className="task-priority-label" data-priority={task.priority}>
+                    {taskPriorityLabel(task.priority)}
+                  </span>
+                  {task.isOverdue ? (
+                    <span className="task-overdue-label">Overdue</span>
+                  ) : task.isDueToday ? (
+                    <span className="task-due-today-label">Due today</span>
+                  ) : null}
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 function Avatar({ customer, small = false }: { customer: Customer; small?: boolean }) {

@@ -1,17 +1,18 @@
+import "server-only";
+import { apiFetch } from "@/lib/api";
 import type {
   CustomerField,
   CustomerFormState,
   DeleteCustomerState,
 } from "@/lib/customer-form-state";
+import type { Customer } from "@/lib/customers-shared";
 
-export type Customer = {
-  id: number;
-  name: string;
-  email: string;
-  phone: string | null;
-  company: string | null;
-  createdAt: string;
-};
+export type { Customer } from "@/lib/customers-shared";
+export {
+  customerDetailsHref,
+  customersPageHref,
+  formatCustomerCreatedAt,
+} from "@/lib/customers-shared";
 
 export type NewCustomer = {
   name: string;
@@ -27,7 +28,7 @@ export async function getCustomer(id: number): Promise<Customer | null> {
 
   let response: Response;
   try {
-    response = await fetch(`${customersUrl()}/${id}`, {
+    response = await apiFetch(`${customersUrl()}/${id}`, {
       headers: { Accept: "application/json" },
       cache: "no-store",
     });
@@ -69,7 +70,7 @@ export async function getCustomers(options?: {
     url.searchParams.set("search", search);
   }
 
-  const response = await fetch(url, { cache: "no-store" });
+  const response = await apiFetch(url, { cache: "no-store" });
 
   if (!response.ok) {
     throw new Error(`Could not load customers (${response.status}).`);
@@ -97,7 +98,7 @@ export async function getCustomersPage(options?: {
   url.searchParams.set("page", String(options?.page ?? 1));
   url.searchParams.set("pageSize", String(options?.pageSize ?? CUSTOMERS_PAGE_SIZE));
 
-  const response = await fetch(url, { cache: "no-store" });
+  const response = await apiFetch(url, { cache: "no-store" });
 
   if (!response.ok) {
     throw new Error(`Could not load customers (${response.status}).`);
@@ -109,41 +110,6 @@ export async function getCustomersPage(options?: {
   }
 
   return body;
-}
-
-export function customersPageHref(
-  search: string | null,
-  page: number | null = null,
-): string {
-  const params = new URLSearchParams();
-  const trimmed = search?.trim() ?? "";
-  if (trimmed !== "") {
-    params.set("search", trimmed);
-  }
-  if (page !== null && page > 1) {
-    params.set("page", String(page));
-  }
-
-  const query = params.toString();
-  return query === "" ? "/customers" : `/customers?${query}`;
-}
-
-export function customerDetailsHref(
-  id: number,
-  search: string | null = null,
-  page: number | null = null,
-): string {
-  const params = new URLSearchParams();
-  const trimmed = search?.trim() ?? "";
-  if (trimmed !== "") {
-    params.set("search", trimmed);
-  }
-  if (page !== null && page > 1) {
-    params.set("page", String(page));
-  }
-
-  const query = params.toString();
-  return query === "" ? `/customers/${id}` : `/customers/${id}?${query}`;
 }
 
 function isPagedCustomers(value: unknown): value is PagedCustomers {
@@ -165,19 +131,6 @@ function isPagedCustomers(value: unknown): value is PagedCustomers {
     Number.isInteger(row.totalCount) &&
     row.totalCount >= 0
   );
-}
-
-export function formatCustomerCreatedAt(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return `${new Intl.DateTimeFormat("en-GB", {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZone: "UTC",
-  }).format(date)} UTC`;
 }
 
 export function createCustomer(input: NewCustomer): Promise<CustomerFormState> {
@@ -204,7 +157,7 @@ export async function deleteCustomer(
   let response: Response;
 
   try {
-    response = await fetch(`${customersUrl()}/${id}`, {
+    response = await apiFetch(`${customersUrl()}/${id}`, {
       method: "DELETE",
       headers: { Accept: "application/json" },
       cache: "no-store",
@@ -257,7 +210,7 @@ async function saveCustomer(
   let response: Response;
 
   try {
-    response = await fetch(url, {
+    response = await apiFetch(url, {
       method,
       headers: {
         Accept: "application/json",

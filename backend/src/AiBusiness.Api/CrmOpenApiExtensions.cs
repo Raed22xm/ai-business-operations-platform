@@ -79,8 +79,9 @@ public static class CrmOpenApiExtensions
         else if (type == typeof(CaseTask))
         {
             schema.Description =
-                "Task within a case. On create, `caseId` and `title` are required; `description` and `dueDate` are optional. "
-                + "`id`, `status`, and `createdAt` are server-controlled. Create always stores status `Todo`.";
+                "Task within a case. On create, `caseId` and `title` are required; `description`, `dueDate`, and `priority` are optional. "
+                + "`id`, `status`, and `createdAt` are server-controlled. Create always stores status `Todo`. "
+                + "`priority` defaults to Normal when omitted.";
             schema.Required ??= new HashSet<string>();
             schema.Required.Add("caseId");
             schema.Required.Add("title");
@@ -93,14 +94,19 @@ public static class CrmOpenApiExtensions
                 schema,
                 "status",
                 "One of Todo, InProgress, Done. Create always forces Todo; clients cannot set status on create.");
+            DescribeProperty(
+                schema,
+                "priority",
+                "One of Low, Normal, High. Defaults to Normal when omitted on create.");
             DescribeProperty(schema, "createdAt", "UTC timestamp set by the server on create.");
         }
         else if (type == typeof(CaseTaskUpdate))
         {
             schema.Description =
-                "Task update body. Only `title`, `description`, `dueDate`, and `status` are applied. "
+                "Task update body. Only `title`, `description`, `dueDate`, `status`, and optionally `priority` are applied. "
                 + "`id`, `caseId`, and `createdAt` in the body are ignored. "
-                + "`status` must be exactly Todo, InProgress, or Done (case-sensitive).";
+                + "`status` must be exactly Todo, InProgress, or Done (case-sensitive). "
+                + "When `priority` is omitted or null, the existing priority is preserved.";
             schema.Required ??= new HashSet<string>();
             schema.Required.Add("title");
             schema.Required.Add("status");
@@ -113,11 +119,19 @@ public static class CrmOpenApiExtensions
                 schema,
                 "status",
                 "Required. Exactly one of: Todo, InProgress, Done.");
+            DescribeProperty(
+                schema,
+                "priority",
+                "Optional. Exactly Low, Normal, or High when present. Omitted or null leaves the stored priority unchanged.");
             DescribeProperty(schema, "createdAt", "Ignored. Creation time cannot change.");
         }
         else if (type == typeof(CaseTaskStatus))
         {
             schema.Description = "Allowed values: Todo, InProgress, Done.";
+        }
+        else if (type == typeof(CaseTaskPriority))
+        {
+            schema.Description = "Allowed values: Low, Normal, High. Default Normal.";
         }
         else if (type == typeof(CaseStatus))
         {
@@ -126,12 +140,47 @@ public static class CrmOpenApiExtensions
         else if (type == typeof(DashboardSummary))
         {
             schema.Description =
-                "Dashboard totals calculated in the database. Empty tables yield zeros.";
+                "Dashboard totals calculated in the database. Overdue / due-today use BusinessTimezone "
+                + "(default Europe/Copenhagen). Due dates are calendar dates. Empty tables yield zeros.";
             DescribeProperty(schema, "totalCustomers", "Number of customers.");
             DescribeProperty(schema, "totalCases", "Number of cases.");
             DescribeProperty(schema, "openCases", "Cases with status Open.");
             DescribeProperty(schema, "inProgressCases", "Cases with status InProgress.");
             DescribeProperty(schema, "closedCases", "Cases with status Closed.");
+            DescribeProperty(schema, "overdueTasks", "Not-Done tasks with due date before business today.");
+            DescribeProperty(schema, "dueTodayTasks", "Not-Done tasks due on business today.");
+            DescribeProperty(
+                schema,
+                "outstandingTasks",
+                "Compact list of not-Done tasks (earliest due first; max 8). Totals are not limited to this list.");
+            DescribeProperty(schema, "businessTimeZone", "IANA zone used for today.");
+            DescribeProperty(schema, "businessToday", "Calendar today in the business time zone (YYYY-MM-DD).");
+        }
+        else if (type == typeof(OutstandingTaskItem))
+        {
+            schema.Description = "Outstanding task row for the dashboard compact list.";
+            DescribeProperty(schema, "caseId", "Parent case id (link target).");
+            DescribeProperty(schema, "caseTitle", "Parent case title.");
+            DescribeProperty(schema, "priority", "Task priority: Low, Normal, or High.");
+            DescribeProperty(schema, "isOverdue", "True when due before business today and not Done.");
+            DescribeProperty(schema, "isDueToday", "True when due on business today and not Done.");
+        }
+        else if (type == typeof(TaskSearchItem))
+        {
+            schema.Description = "Task row returned by GET /api/tasks/search.";
+            DescribeProperty(schema, "priority", "Task priority: Low, Normal, or High.");
+            DescribeProperty(schema, "isOverdue", "True when due before business today and not Done.");
+            DescribeProperty(schema, "isDueToday", "True when due on business today and not Done.");
+        }
+        else if (type == typeof(CaseActivity))
+        {
+            schema.Description =
+                "Product activity event for a case (not a tamper-proof audit log). "
+                + "History starts when recording was enabled.";
+            DescribeProperty(schema, "eventType", "CaseCreated, CaseEdited, CaseStatusChanged, TaskCreated, TaskUpdated, TaskCompleted, TaskDeleted.");
+            DescribeProperty(schema, "description", "Short operator-facing summary.");
+            DescribeProperty(schema, "occurredAt", "Server UTC timestamp.");
+            DescribeProperty(schema, "actorName", "Authenticated display name when available; otherwise null.");
         }
         else if (IsPagedResult(type, out var itemName))
         {

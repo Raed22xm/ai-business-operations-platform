@@ -27,7 +27,7 @@ public sealed class CoreWorkflowIntegrationTests
     {
         _fixture.RequireAvailable();
         await _fixture.ResetDataAsync();
-        using var client = _fixture.CreateClient();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
         var marker = UniqueMarker();
 
         var customer = await CreateCustomerAsync(client, marker, "alpha@example.com");
@@ -56,7 +56,7 @@ public sealed class CoreWorkflowIntegrationTests
     {
         _fixture.RequireAvailable();
         await _fixture.ResetDataAsync();
-        using var client = _fixture.CreateClient();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
         var marker = UniqueMarker();
 
         var customer = await CreateCustomerAsync(client, marker, "status@example.com");
@@ -72,7 +72,7 @@ public sealed class CoreWorkflowIntegrationTests
             });
         Assert.Equal(HttpStatusCode.OK, updateResponse.StatusCode);
 
-        using var freshClient = _fixture.CreateClient();
+        using var freshClient = await _fixture.CreateAuthenticatedClientAsync();
         var getResponse = await freshClient.GetAsync($"/api/cases/{work.Id}");
         Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
 
@@ -86,7 +86,7 @@ public sealed class CoreWorkflowIntegrationTests
     {
         _fixture.RequireAvailable();
         await _fixture.ResetDataAsync();
-        using var client = _fixture.CreateClient();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
         var marker = UniqueMarker();
 
         var customer = await CreateCustomerAsync(client, marker, "conflict@example.com");
@@ -104,7 +104,7 @@ public sealed class CoreWorkflowIntegrationTests
     {
         _fixture.RequireAvailable();
         await _fixture.ResetDataAsync();
-        using var client = _fixture.CreateClient();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
         var marker = UniqueMarker();
 
         var customer = await CreateCustomerAsync(client, marker, "gone@example.com");
@@ -122,7 +122,7 @@ public sealed class CoreWorkflowIntegrationTests
     {
         _fixture.RequireAvailable();
         await _fixture.ResetDataAsync();
-        using var client = _fixture.CreateClient();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
         var marker = UniqueMarker();
 
         var first = await CreateCustomerAsync(client, $"{marker}-one", $"{marker}-one@example.com", "Alpha Co");
@@ -173,7 +173,7 @@ public sealed class CoreWorkflowIntegrationTests
     {
         _fixture.RequireAvailable();
         await _fixture.ResetDataAsync();
-        using var client = _fixture.CreateClient();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
         var marker = UniqueMarker();
 
         var customer = await CreateCustomerAsync(client, marker, "valid@example.com", "Keep Co");

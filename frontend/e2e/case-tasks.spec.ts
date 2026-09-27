@@ -6,6 +6,7 @@ import {
   deleteCaseViaApi,
   deleteCustomerViaApi,
   deleteTaskViaApi,
+  bearerHeaders,
   expect,
   test,
   uniqueMarker,
@@ -46,6 +47,9 @@ test.describe("case details tasks", () => {
         "To do",
       );
       await expect(page.getByRole("row", { name: new RegExp(`${marker} Keeper`) })).toContainText(
+        "Normal",
+      );
+      await expect(page.getByRole("row", { name: new RegExp(`${marker} Keeper`) })).toContainText(
         "05/01/2030",
       );
 
@@ -53,6 +57,7 @@ test.describe("case details tasks", () => {
       await addTask.getByLabel("Title").fill(`${marker} Draft`);
       await addTask.getByLabel("Description").fill("First pass");
       await addTask.getByLabel("Due date").fill("2026-10-15");
+      await addTask.getByLabel("Priority").selectOption("High");
       await addTask.getByRole("button", { name: "Add task" }).click();
 
       await expect(page.getByRole("status").filter({ hasText: /was added/i })).toBeVisible();
@@ -61,9 +66,14 @@ test.describe("case details tasks", () => {
       ).toHaveText("To do");
       await expect(
         page.getByRole("row", { name: new RegExp(`${marker} Draft`) }).getByRole("cell").nth(2),
+      ).toHaveText("High");
+      await expect(
+        page.getByRole("row", { name: new RegExp(`${marker} Draft`) }).getByRole("cell").nth(3),
       ).toHaveText("15/10/2026");
 
-      const listed = await request.get(`${e2e.apiURL}/api/tasks?caseId=${work.id}`);
+      const listed = await request.get(`${e2e.apiURL}/api/tasks?caseId=${work.id}`, {
+        headers: bearerHeaders(e2e),
+      });
       expect(listed.ok()).toBeTruthy();
       const tasks = (await listed.json()) as Array<{ id: number; title: string }>;
       const draft = tasks.find((row) => row.title === `${marker} Draft`);
@@ -96,16 +106,21 @@ test.describe("case details tasks", () => {
       ).toHaveText("In progress");
       await expect(
         page.getByRole("row", { name: new RegExp(`${marker} Active`) }).getByRole("cell").nth(2),
+      ).toHaveText("High");
+      await expect(
+        page.getByRole("row", { name: new RegExp(`${marker} Active`) }).getByRole("cell").nth(3),
       ).toHaveText("—");
 
       await page.getByRole("button", { name: `Edit ${marker} Active` }).click();
       const editDone = page.getByRole("form", { name: `Edit ${marker} Active` });
       await editDone.getByLabel("Status").selectOption("Done");
+      await editDone.getByLabel("Priority").selectOption("Low");
       await editDone.getByRole("button", { name: "Save changes" }).click();
       await expect(page.getByRole("status").filter({ hasText: /was updated/i })).toBeVisible();
       await expect(page.getByRole("form", { name: `Edit ${marker} Active` })).toHaveCount(0);
       const activeRow = page.getByRole("row", { name: new RegExp(`${marker} Active`) });
       await expect(activeRow.getByRole("cell").nth(1)).toHaveText("Done");
+      await expect(activeRow.getByRole("cell").nth(2)).toHaveText("Low");
 
       await page.reload();
       await expect(page.getByRole("heading", { name: `${marker} Case`, level: 1 })).toBeVisible();
@@ -113,7 +128,7 @@ test.describe("case details tasks", () => {
         page.getByRole("row", { name: new RegExp(`${marker} Active`) }).getByRole("cell").nth(1),
       ).toHaveText("Done");
       await expect(
-        page.getByRole("row", { name: new RegExp(`${marker} Keeper`) }).getByRole("cell").nth(2),
+        page.getByRole("row", { name: new RegExp(`${marker} Keeper`) }).getByRole("cell").nth(3),
       ).toHaveText("05/01/2030");
 
       await page.getByRole("button", { name: `Delete ${marker} Active` }).click();

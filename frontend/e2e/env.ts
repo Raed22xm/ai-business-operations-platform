@@ -13,12 +13,19 @@ export const E2E_CONTAINER_NAME = "aibusiness-browser-e2e-postgres";
 export const E2E_DB_USER = "aibusiness_e2e";
 export const E2E_DB_PASSWORD = "browser-e2e-only";
 
+/** Disposable workspace credentials for e2e only (not development user-secrets). */
+export const E2E_AUTH_USERNAME = "e2e-workspace";
+export const E2E_AUTH_PASSWORD = "e2e-workspace-password";
+export const E2E_AUTH_SIGNING_KEY = "e2e-browser-signing-key-32chars!!";
+export const E2E_AUTH_COOKIE = "ops_hub_session";
+
 export const repoRoot = path.resolve(__dirname, "../..");
 export const frontendRoot = path.resolve(__dirname, "..");
 export const backendRoot = path.join(repoRoot, "backend");
 export const apiProject = path.join(backendRoot, "src", "AiBusiness.Api");
 export const runtimeDir = path.join(__dirname, ".runtime");
 export const statePath = path.join(runtimeDir, "state.json");
+export const authStatePath = path.join(runtimeDir, "auth-storage.json");
 export const mockRulesPath = path.join(runtimeDir, "api-mock-rules.json");
 
 export type E2EState = {
@@ -31,6 +38,8 @@ export type E2EState = {
   apiPid?: number;
   proxyPid?: number;
   frontendPid?: number;
+  /** JWT for API helper calls — never log this value. */
+  accessToken?: string;
 };
 
 export function assertNotDevelopmentDatabase(connectionString: string): void {

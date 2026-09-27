@@ -59,4 +59,10 @@ frontend/.env*.local
 .cursor/ai-tracking/
 
 # Graphify cache
-graphify-out/cache/
+**/graphify-out/cache/
+
+# Database backups must never be committed (also store outside the repo)
+*.dump
+*.dump.meta.json
+backups/
+**/backups/

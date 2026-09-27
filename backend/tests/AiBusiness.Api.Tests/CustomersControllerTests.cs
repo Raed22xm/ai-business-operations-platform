@@ -1,3 +1,4 @@
+using System.Text;
 using AiBusiness.Api.Controllers;
 using AiBusiness.Api.Data;
 using AiBusiness.Api.Models;
@@ -32,7 +33,8 @@ public class CustomersControllerTests : IDisposable
         _connection.Dispose();
     }
 
-    private CustomersController CreateController() => new(_database);
+    private CustomersController CreateController(int maxRows = 10_000) =>
+        new(_database, TestCsvExport.Service(maxRows));
 
     [Fact]
     public async Task Create_ValidCustomer_ReturnsCreatedWithCustomer()
@@ -628,6 +630,79 @@ public class CustomersControllerTests : IDisposable
             await CreateController().GetAll(page: 1, pageSize: 101),
             "pageSize");
     }
+
+    [Fact]
+    public async Task Export_Empty_ReturnsHeadersOnly_DoesNotMutate()
+    {
+        var before = await SnapshotAll(CreateController());
+        var result = Assert.IsType<FileContentResult>(await CreateController().Export(null));
+        Assert.Equal("text/csv; charset=utf-8", result.ContentType);
+        Assert.StartsWith("customers-", result.FileDownloadName);
+        Assert.EndsWith(".csv", result.FileDownloadName);
+        var text = StripBom(Encoding.UTF8.GetString(result.FileContents));
+        Assert.Equal("Id,Name,Email,Phone,Company,Created At (UTC)\r\n", text);
+        Assert.Equal(
+            before.Select(c => c.Id).ToArray(),
+            (await SnapshotAll(CreateController())).Select(c => c.Id).ToArray());
+    }
+
+    [Fact]
+    public async Task Export_AppliesSearch_IncludesAllMatchingRows_NotJustPage()
+    {
+        var marker = $"Export-{Guid.NewGuid():N}";
+        for (var i = 0; i < 5; i++)
+        {
+            await CreateStored($"{marker} {i}", $"export{i}@example.com", null, null);
+        }
+
+        await CreateStored("Other person", "other-export@example.com", null, null);
+
+        var page = await PageCustomers(page: 1, pageSize: 2, search: marker);
+        Assert.Equal(5, page.TotalCount);
+        Assert.Equal(2, page.Items.Length);
+
+        var result = Assert.IsType<FileContentResult>(await CreateController().Export(marker));
+        var text = StripBom(Encoding.UTF8.GetString(result.FileContents));
+        var lines = text.Split("\r\n", StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal(6, lines.Length);
+        Assert.Contains("Id,Name,Email,Phone,Company,Created At (UTC)", lines[0]);
+        Assert.DoesNotContain("Other person", text);
+        Assert.Contains($"{marker} 0", text);
+        Assert.Contains($"{marker} 4", text);
+        Assert.Contains(" UTC", text);
+    }
+
+    [Fact]
+    public async Task Export_SpecialCharactersAndFormulaLikeValues_AreSafe()
+    {
+        await CreateStored(
+            "Name, \"quoted\"",
+            "special@example.com",
+            "=1+1",
+            "Line1\nLine2");
+
+        var result = Assert.IsType<FileContentResult>(await CreateController().Export("quoted"));
+        var text = StripBom(Encoding.UTF8.GetString(result.FileContents));
+        Assert.Contains("\"Name, \"\"quoted\"\"\"", text);
+        Assert.Contains("'=1+1", text);
+        Assert.Contains("\"Line1\nLine2\"", text);
+    }
+
+    [Fact]
+    public async Task Export_ExceedsMaxRows_ReturnsBadRequest_DoesNotMutate()
+    {
+        await CreateStored("A", "a-limit@example.com", null, null);
+        await CreateStored("B", "b-limit@example.com", null, null);
+        var beforeCount = await _database.Customers.CountAsync();
+
+        var result = await CreateController(maxRows: 1).Export(null);
+        var problem = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(StatusCodes.Status400BadRequest, problem.StatusCode);
+        Assert.Equal(beforeCount, await _database.Customers.CountAsync());
+    }
+
+    private static string StripBom(string text) =>
+        text.Length > 0 && text[0] == '\uFEFF' ? text[1..] : text;
 
     private async Task<Customer> CreateStored(
         string name,

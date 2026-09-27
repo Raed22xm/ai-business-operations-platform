@@ -59,6 +59,7 @@
 .record-status::before { content: ""; width: 5px; height: 5px; background: currentColor; border-radius: 50%; }
 .record-status[data-status="Open"], .record-status[data-status="Done"] { color: #78e7c1; background: #153b2f; border-color: #326d56; }
 .record-status[data-status="InProgress"] { color: #f2cf87; background: #40371f; border-color: #80683b; }
+.record-status[data-status="Archived"] { color: #b8c4bc; background: #2a3230; border-color: #4d5852; }
 .crm-details-card { background: radial-gradient(ellipse at top right, #15534166, transparent 65%), #222527; }
 .crm-details-card dl { border-top: 1px solid #45504b; padding-top: 22px; gap: 24px; }
 .crm-details-card dt { color: #b7c5be; margin-bottom: 4px; font-size: 13px; }
@@ -94,3 +95,16 @@
 @media (prefers-reduced-motion: reduce) {
   .crm-page :is(button, input, select, textarea) { transition: none; }
 }
+
+.case-activity-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0; }
+.case-activity-item { position: relative; display: flex; gap: 14px; padding: 0 0 18px; }
+.case-activity-item:not(:last-child)::after {
+  content: ""; position: absolute; left: 5px; top: 16px; bottom: 0; width: 1px; background: #49544d;
+}
+.case-activity-marker {
+  width: 11px; height: 11px; margin-top: 4px; border-radius: 50%;
+  background: #1f604d; border: 2px solid #78e7c1; flex-shrink: 0;
+}
+.case-activity-body { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.case-activity-description { font-size: 15px; font-weight: 500; color: #eef3f0; overflow-wrap: anywhere; }
+.case-activity-meta { font-size: 12px; color: #a8b6ae; }

@@ -1,4 +1,4 @@
-export type TaskField = "title" | "description" | "dueDate" | "status";
+export type TaskField = "title" | "description" | "dueDate" | "status" | "priority";
 
 export type TaskFormState = {
   status: "idle" | "success" | "error";

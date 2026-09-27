@@ -1,15 +1,23 @@
+import "server-only";
+import { apiFetch } from "@/lib/api";
 import type { CaseField, CaseFormState, DeleteCaseState } from "@/lib/case-form-state";
+import type { CaseStatus, CaseArchiveFilter, CustomerCase } from "@/lib/cases-shared";
 
-export type CaseStatus = "Open" | "InProgress" | "Closed";
-
-export type CustomerCase = {
-  id: number;
-  customerId: number;
-  title: string;
-  description: string | null;
-  status: CaseStatus;
-  createdAt: string;
-};
+export type {
+  CaseArchiveFilter,
+  CaseListFilters,
+  CaseStatus,
+  CustomerCase,
+} from "@/lib/cases-shared";
+export {
+  caseArchiveBlockedReason,
+  caseDetailsHref,
+  caseStatusLabel,
+  casesPageHref,
+  formatCaseCreatedAt,
+  isCaseArchived,
+  isCaseArchiveFilter,
+} from "@/lib/cases-shared";
 
 export type NewCase = {
   customerId: number;
@@ -27,7 +35,7 @@ export async function createCase(input: NewCase): Promise<CaseFormState> {
   let response: Response;
 
   try {
-    response = await fetch(casesUrl(), {
+    response = await apiFetch(casesUrl(), {
       method: "POST",
       headers: {
         Accept: "application/json",
@@ -75,7 +83,7 @@ export async function updateCase(id: number, input: CaseChanges): Promise<CaseFo
   let response: Response;
 
   try {
-    response = await fetch(`${casesUrl()}/${id}`, {
+    response = await apiFetch(`${casesUrl()}/${id}`, {
       method: "PUT",
       headers: {
         Accept: "application/json",
@@ -120,6 +128,10 @@ export async function updateCase(id: number, input: CaseChanges): Promise<CaseFo
     return caseError("That case was not found.");
   }
 
+  if (response.status === 409) {
+    return caseError(await readArchiveConflictDetail(response, "This case cannot be updated."));
+  }
+
   return caseError(`Could not save the case (${response.status}).`);
 }
 
@@ -127,7 +139,7 @@ export async function deleteCase(id: number, title: string): Promise<DeleteCaseS
   let response: Response;
 
   try {
-    response = await fetch(`${casesUrl()}/${id}`, {
+    response = await apiFetch(`${casesUrl()}/${id}`, {
       method: "DELETE",
       headers: { Accept: "application/json" },
       cache: "no-store",
@@ -156,6 +168,84 @@ export async function deleteCase(id: number, title: string): Promise<DeleteCaseS
   return deleteCaseError(id, `Could not delete the case (${response.status}).`);
 }
 
+export async function archiveCase(id: number, title: string): Promise<DeleteCaseState> {
+  let response: Response;
+  try {
+    response = await apiFetch(`${casesUrl()}/${id}/archive`, {
+      method: "POST",
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+    });
+  } catch {
+    return deleteCaseError(id, "Could not archive the case. Check that the API is running.");
+  }
+
+  if (response.ok) {
+    return {
+      status: "success",
+      message: `${title} was archived.`,
+      formError: null,
+      caseId: id,
+    };
+  }
+
+  if (response.status === 404) {
+    return deleteCaseError(id, "That case was not found.");
+  }
+
+  if (response.status === 409) {
+    return deleteCaseError(id, await readArchiveConflictDetail(response));
+  }
+
+  return deleteCaseError(id, `Could not archive the case (${response.status}).`);
+}
+
+export async function restoreCase(id: number, title: string): Promise<DeleteCaseState> {
+  let response: Response;
+  try {
+    response = await apiFetch(`${casesUrl()}/${id}/restore`, {
+      method: "POST",
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+    });
+  } catch {
+    return deleteCaseError(id, "Could not restore the case. Check that the API is running.");
+  }
+
+  if (response.ok) {
+    return {
+      status: "success",
+      message: `${title} was restored.`,
+      formError: null,
+      caseId: id,
+    };
+  }
+
+  if (response.status === 404) {
+    return deleteCaseError(id, "That case was not found.");
+  }
+
+  if (response.status === 409) {
+    return deleteCaseError(id, await readArchiveConflictDetail(response, "This case is not archived."));
+  }
+
+  return deleteCaseError(id, `Could not restore the case (${response.status}).`);
+}
+
+async function readArchiveConflictDetail(
+  response: Response,
+  fallback = "This case cannot be archived.",
+): Promise<string> {
+  try {
+    const body = (await response.json()) as { detail?: unknown };
+    return typeof body.detail === "string" && body.detail.trim() !== ""
+      ? body.detail.trim()
+      : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 async function readCaseConflictDetail(response: Response): Promise<string> {
   const fallback = "This case has tasks and cannot be deleted.";
   try {
@@ -175,7 +265,7 @@ export async function getCase(id: number): Promise<CustomerCase | null> {
 
   let response: Response;
   try {
-    response = await fetch(`${casesUrl()}/${id}`, {
+    response = await apiFetch(`${casesUrl()}/${id}`, {
       headers: { Accept: "application/json" },
       cache: "no-store",
     });
@@ -212,6 +302,7 @@ export async function getCases(options?: {
   customerId?: number;
   status?: CaseStatus;
   search?: string;
+  archive?: CaseArchiveFilter;
 }): Promise<CustomerCase[]> {
   const url = new URL(casesUrl());
   if (options?.customerId !== undefined) {
@@ -224,8 +315,11 @@ export async function getCases(options?: {
   if (search) {
     url.searchParams.set("search", search);
   }
+  if (options?.archive) {
+    url.searchParams.set("archive", options.archive);
+  }
 
-  const response = await fetch(url, { cache: "no-store" });
+  const response = await apiFetch(url, { cache: "no-store" });
 
   if (!response.ok) {
     throw new Error(`Could not load cases (${response.status}).`);
@@ -244,6 +338,7 @@ export async function getCasesPage(options?: {
   customerId?: number;
   status?: CaseStatus;
   search?: string;
+  archive?: CaseArchiveFilter;
   page?: number;
   pageSize?: number;
 }): Promise<PagedCases> {
@@ -258,10 +353,13 @@ export async function getCasesPage(options?: {
   if (search) {
     url.searchParams.set("search", search);
   }
+  if (options?.archive) {
+    url.searchParams.set("archive", options.archive);
+  }
   url.searchParams.set("page", String(options?.page ?? 1));
   url.searchParams.set("pageSize", String(options?.pageSize ?? CASES_PAGE_SIZE));
 
-  const response = await fetch(url, { cache: "no-store" });
+  const response = await apiFetch(url, { cache: "no-store" });
 
   if (!response.ok) {
     throw new Error(`Could not load cases (${response.status}).`);
@@ -273,58 +371,6 @@ export async function getCasesPage(options?: {
   }
 
   return body;
-}
-
-export type CaseListFilters = {
-  customerId: number | null;
-  status: CaseStatus | null;
-  search: string | null;
-  page: number | null;
-};
-
-export function casesPageHref(
-  customerId: number | null,
-  status: CaseStatus | null,
-  search: string | null = null,
-  page: number | null = null,
-): string {
-  const params = new URLSearchParams();
-  if (customerId !== null) {
-    params.set("customerId", String(customerId));
-  }
-  if (status !== null) {
-    params.set("status", status);
-  }
-  const trimmed = search?.trim() ?? "";
-  if (trimmed !== "") {
-    params.set("search", trimmed);
-  }
-  if (page !== null && page > 1) {
-    params.set("page", String(page));
-  }
-
-  const query = params.toString();
-  return query === "" ? "/cases" : `/cases?${query}`;
-}
-
-export function caseDetailsHref(id: number, filters?: Partial<CaseListFilters>): string {
-  const params = new URLSearchParams();
-  if (filters?.customerId != null) {
-    params.set("customerId", String(filters.customerId));
-  }
-  if (filters?.status) {
-    params.set("status", filters.status);
-  }
-  const trimmed = filters?.search?.trim() ?? "";
-  if (trimmed !== "") {
-    params.set("search", trimmed);
-  }
-  if (filters?.page != null && filters.page > 1) {
-    params.set("page", String(filters.page));
-  }
-
-  const query = params.toString();
-  return query === "" ? `/cases/${id}` : `/cases/${id}?${query}`;
 }
 
 function isPagedCases(value: unknown): value is PagedCases {
@@ -346,43 +392,6 @@ function isPagedCases(value: unknown): value is PagedCases {
     Number.isInteger(row.totalCount) &&
     row.totalCount >= 0
   );
-}
-
-export function caseStatusLabel(status: CaseStatus): string {
-  if (status === "InProgress") {
-    return "In progress";
-  }
-
-  return status;
-}
-
-export function formatCaseCreatedAt(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  const months = [
-    "Jan",
-    "Feb",
-    "Mar",
-    "Apr",
-    "May",
-    "Jun",
-    "Jul",
-    "Aug",
-    "Sept",
-    "Oct",
-    "Nov",
-    "Dec",
-  ];
-  const day = date.getUTCDate();
-  const month = months[date.getUTCMonth()] ?? "";
-  const year = date.getUTCFullYear();
-  const hours = String(date.getUTCHours()).padStart(2, "0");
-  const minutes = String(date.getUTCMinutes()).padStart(2, "0");
-
-  return `${day} ${month} ${year}, ${hours}:${minutes} UTC`;
 }
 
 function casesUrl(): string {
@@ -410,7 +419,8 @@ function isCustomerCase(value: unknown): value is CustomerCase {
     typeof row.title === "string" &&
     (row.description === null || typeof row.description === "string") &&
     isCaseStatus(row.status) &&
-    typeof row.createdAt === "string"
+    typeof row.createdAt === "string" &&
+    (row.archivedAt === null || typeof row.archivedAt === "string")
   );
 }
 

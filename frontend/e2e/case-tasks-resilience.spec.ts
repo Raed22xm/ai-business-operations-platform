@@ -6,6 +6,7 @@ import {
   deleteCaseViaApi,
   deleteCustomerViaApi,
   deleteTaskViaApi,
+  bearerHeaders,
   expect,
   test,
   uniqueMarker,
@@ -181,7 +182,9 @@ test.describe("case details tasks resilience", () => {
       await expect(page.getByRole("status").filter({ hasText: /was added/i })).toBeVisible();
       await expect(page.getByRole("row", { name: new RegExp(`${marker} New`) })).toBeVisible();
 
-      const listed = await request.get(`${e2e.apiURL}/api/tasks?caseId=${work.id}`);
+      const listed = await request.get(`${e2e.apiURL}/api/tasks?caseId=${work.id}`, {
+        headers: bearerHeaders(e2e),
+      });
       const tasks = (await listed.json()) as Array<{ id: number; title: string }>;
       const created = tasks.find((row) => row.title === `${marker} New`);
       expect(created).toBeTruthy();
@@ -261,7 +264,9 @@ test.describe("case details tasks resilience", () => {
         timeout: 15_000,
       });
 
-      const afterSlow = await request.get(`${e2e.apiURL}/api/tasks?caseId=${work.id}`);
+      const afterSlow = await request.get(`${e2e.apiURL}/api/tasks?caseId=${work.id}`, {
+        headers: bearerHeaders(e2e),
+      });
       const afterTasks = (await afterSlow.json()) as Array<{ id: number; title: string }>;
       const slowMatches = afterTasks.filter((row) => row.title === `${marker} Slow`);
       expect(slowMatches).toHaveLength(1);

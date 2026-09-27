@@ -2,18 +2,35 @@ import { Suspense } from "react";
 import { CaseTasksPanel } from "@/app/cases/[id]/case-tasks-panel";
 import { getTasksForCase } from "@/lib/tasks";
 
-export function CaseTasksSection({ caseId }: { caseId: number }) {
+export function CaseTasksSection({
+  caseId,
+  readOnly = false,
+}: {
+  caseId: number;
+  readOnly?: boolean;
+}) {
   return (
     <Suspense fallback={<CaseTasksLoading />}>
-      <CaseTasksLoader caseId={caseId} />
+      <CaseTasksLoader caseId={caseId} readOnly={readOnly} />
     </Suspense>
   );
 }
 
-async function CaseTasksLoader({ caseId }: { caseId: number }) {
+async function CaseTasksLoader({
+  caseId,
+  readOnly,
+}: {
+  caseId: number;
+  readOnly: boolean;
+}) {
   const result = await loadTasks(caseId);
   return (
-    <CaseTasksPanel caseId={caseId} tasks={result.tasks} loadError={result.error} />
+    <CaseTasksPanel
+      caseId={caseId}
+      tasks={result.tasks}
+      loadError={result.error}
+      readOnly={readOnly}
+    />
   );
 }
 

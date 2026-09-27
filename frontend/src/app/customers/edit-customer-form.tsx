@@ -6,7 +6,7 @@ import {
   initialCustomerFormState,
   type CustomerField,
 } from "@/lib/customer-form-state";
-import type { Customer } from "@/lib/customers";
+import type { Customer } from "@/lib/customers-shared";
 
 const fields: Array<{
   name: CustomerField;

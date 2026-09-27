@@ -7,7 +7,7 @@ import {
   initialCustomerFormState,
   type CustomerField,
 } from "@/lib/customer-form-state";
-import { customersPageHref } from "@/lib/customers";
+import { customersPageHref } from "@/lib/customers-shared";
 
 const emptyValues: Record<CustomerField, string> = {
   name: "",

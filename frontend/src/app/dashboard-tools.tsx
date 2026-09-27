@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Copy } from "lucide-react";
-import type { CustomerCase } from "@/lib/cases";
+import type { CustomerCase } from "@/lib/cases-shared";
 
 export function CasePicker({ cases, selectedId, customerId, search }: { cases: CustomerCase[]; selectedId: number; customerId: number; search?: string }) {
   const router = useRouter();

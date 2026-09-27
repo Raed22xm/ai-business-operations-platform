@@ -3,6 +3,13 @@
 import { useActionState, useEffect, useRef, useState, type ReactNode } from "react";
 import { createTaskAction } from "@/app/cases/[id]/task-actions";
 import { initialTaskFormState } from "@/lib/task-form-state";
+import { taskPriorityLabel, type TaskPriority } from "@/lib/tasks-shared";
+
+const priorities: Array<{ value: TaskPriority; label: string }> = [
+  { value: "Low", label: taskPriorityLabel("Low") },
+  { value: "Normal", label: taskPriorityLabel("Normal") },
+  { value: "High", label: taskPriorityLabel("High") },
+];
 
 export function CreateTaskForm({
   caseId,
@@ -16,6 +23,7 @@ export function CreateTaskForm({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [priority, setPriority] = useState<TaskPriority>("Normal");
   const [clearedRevision, setClearedRevision] = useState(state.revision);
   const reportedRevision = useRef(0);
 
@@ -24,6 +32,7 @@ export function CreateTaskForm({
     setTitle("");
     setDescription("");
     setDueDate("");
+    setPriority("Normal");
   }
 
   useEffect(() => {
@@ -88,6 +97,25 @@ export function CreateTaskForm({
           aria-describedby={state.fieldErrors.dueDate ? "task-due-date-error" : undefined}
           className="w-full max-w-xs rounded-lg border border-zinc-300 bg-transparent px-3 py-2 text-sm outline-none focus:border-zinc-500 disabled:opacity-60 dark:border-zinc-700"
         />
+      </Field>
+      <Field id="task-priority" label="Priority" required error={state.fieldErrors.priority}>
+        <select
+          id="task-priority"
+          name="priority"
+          required
+          value={priority}
+          onChange={(event) => setPriority(event.target.value as TaskPriority)}
+          disabled={pending}
+          aria-invalid={state.fieldErrors.priority ? true : undefined}
+          aria-describedby={state.fieldErrors.priority ? "task-priority-error" : undefined}
+          className="w-full max-w-xs rounded-lg border border-zinc-300 bg-transparent px-3 py-2 text-sm outline-none focus:border-zinc-500 disabled:opacity-60 dark:border-zinc-700"
+        >
+          {priorities.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
       </Field>
       <div className="flex flex-col items-start gap-3">
         {state.formError ? (

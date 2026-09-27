@@ -11,6 +11,8 @@ import {
   CASES_PAGE_SIZE,
   casesPageHref,
   getCasesPage,
+  isCaseArchiveFilter,
+  type CaseArchiveFilter,
   type CaseStatus,
 } from "@/lib/cases";
 import { getCustomers } from "@/lib/customers";
@@ -26,6 +28,7 @@ type CasesPageProps = {
     customerId?: string | string[];
     status?: string | string[];
     search?: string | string[];
+    archive?: string | string[];
     page?: string | string[];
     notice?: string | string[];
   }>;
@@ -36,6 +39,7 @@ export default async function CasesPage({ searchParams }: CasesPageProps) {
   const customers = await getCustomers();
   const selectedCustomerId = selectedCustomerIdValue(params.customerId, customers);
   const selectedStatus = selectedStatusValue(params.status);
+  const selectedArchive = selectedArchiveValue(params.archive);
   const search = searchValue(params.search);
   const page = parsePageParam(params.page);
   const notice = noticeValue(params.notice);
@@ -43,6 +47,7 @@ export default async function CasesPage({ searchParams }: CasesPageProps) {
     customerId: selectedCustomerId ?? undefined,
     status: selectedStatus ?? undefined,
     search: search || undefined,
+    archive: selectedArchive,
     page,
     pageSize: CASES_PAGE_SIZE,
   });
@@ -53,6 +58,7 @@ export default async function CasesPage({ searchParams }: CasesPageProps) {
       selectedStatus,
       search || null,
       lastPage === 1 ? null : lastPage,
+      selectedArchive,
     );
     redirect(notice ? withNotice(href, notice) : href);
   }
@@ -64,7 +70,7 @@ export default async function CasesPage({ searchParams }: CasesPageProps) {
       <div className="crm-page-heading">
         <h1 className="text-3xl font-semibold tracking-tight">Cases</h1>
         <p className="text-zinc-600 dark:text-zinc-400">
-          Add a case, or edit or delete one in the list.
+          Add a case, or edit, archive, or delete one in the list.
         </p>
       </div>
       {notice ? (
@@ -76,10 +82,11 @@ export default async function CasesPage({ searchParams }: CasesPageProps) {
         <div className="crm-create-column">{customers.length === 0 ? <NoCustomers /> : <CaseForm customers={namedCustomers} />}</div>
         <section className="crm-records-panel" aria-label="Cases list">
           <CaseFilter
-            key={`${selectedCustomerId ?? ""}-${selectedStatus ?? ""}-${search}`}
+            key={`${selectedCustomerId ?? ""}-${selectedStatus ?? ""}-${selectedArchive}-${search}`}
             customers={namedCustomers}
             selectedCustomerId={selectedCustomerId}
             selectedStatus={selectedStatus}
+            selectedArchive={selectedArchive}
             search={search}
           />
           <CaseTable
@@ -88,9 +95,11 @@ export default async function CasesPage({ searchParams }: CasesPageProps) {
             filteredByCustomer={selectedCustomerId !== null}
             filteredByStatus={selectedStatus !== null}
             filteredBySearch={search !== ""}
+            filteredByArchive={selectedArchive !== "active"}
             listCustomerId={selectedCustomerId}
             listStatus={selectedStatus}
             listSearch={search}
+            listArchive={selectedArchive}
             listPage={page}
           />
           <ListPagination
@@ -102,12 +111,14 @@ export default async function CasesPage({ searchParams }: CasesPageProps) {
               selectedStatus,
               search || null,
               page <= 2 ? null : page - 1,
+              selectedArchive,
             )}
             nextHref={casesPageHref(
               selectedCustomerId,
               selectedStatus,
               search || null,
               page + 1,
+              selectedArchive,
             )}
           />
         </section>
@@ -147,6 +158,15 @@ function selectedStatusValue(value: string | string[] | undefined): CaseStatus |
   }
 
   return null;
+}
+
+function selectedArchiveValue(value: string | string[] | undefined): CaseArchiveFilter {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (isCaseArchiveFilter(raw)) {
+    return raw;
+  }
+
+  return "active";
 }
 
 function searchValue(value: string | string[] | undefined): string {

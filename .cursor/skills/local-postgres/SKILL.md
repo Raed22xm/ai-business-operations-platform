@@ -25,3 +25,7 @@ Do not put the password in source files, appsettings, or logs.
 Port 5432 is a different PostgreSQL server. Do not reset it. Do not start, stop, or remove `studio22_verify_pg`, `friserstudio22-postgres-1`, or `pr1-hairadresser-db-1`.
 
 Apply migrations only to `aibusiness_customers_dev`. Use `dotnet ef` from `backend/` via the local tool manifest.
+
+## Backup / restore
+
+Use `scripts/db/backup.sh` and `scripts/db/restore.sh` (see README **Backup and recovery**). Dumps go under `~/Library/Application Support/AiBusiness/backups/` by default. Restore only into `aibusiness_restore_*` databases — never overwrite `aibusiness_customers_dev`.

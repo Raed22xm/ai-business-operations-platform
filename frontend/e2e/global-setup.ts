@@ -4,9 +4,14 @@ import path from "node:path";
 import {
   assertNotDevelopmentDatabase,
   apiProject,
+  authStatePath,
   backendRoot,
   E2E_API_PORT,
   E2E_API_UPSTREAM_PORT,
+  E2E_AUTH_COOKIE,
+  E2E_AUTH_PASSWORD,
+  E2E_AUTH_SIGNING_KEY,
+  E2E_AUTH_USERNAME,
   E2E_CONTAINER_NAME,
   E2E_DATABASE,
   E2E_DB_PASSWORD,
@@ -119,6 +124,14 @@ export default async function globalSetup(): Promise<void> {
           ASPNETCORE_ENVIRONMENT: "Development",
           ASPNETCORE_URLS: `http://127.0.0.1:${E2E_API_UPSTREAM_PORT}`,
           ConnectionStrings__DefaultConnection: connectionString,
+          Auth__Username: E2E_AUTH_USERNAME,
+          Auth__Password: E2E_AUTH_PASSWORD,
+          Auth__JwtSigningKey: E2E_AUTH_SIGNING_KEY,
+          Auth__JwtIssuer: "AiBusiness.Api",
+          Auth__JwtAudience: "AiBusiness.Frontend",
+          Auth__JwtExpirationMinutes: "120",
+          RateLimiting__Assistant__PermitLimit: "40",
+          RateLimiting__Assistant__WindowSeconds: "60",
         },
         logPath: apiLog,
       },
@@ -171,6 +184,38 @@ export default async function globalSetup(): Promise<void> {
     const baseURL = `http://localhost:${E2E_FRONTEND_PORT}`;
     await waitForUrl(baseURL, 90_000);
 
+    const loginResponse = await fetch(`${apiURL}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        username: E2E_AUTH_USERNAME,
+        password: E2E_AUTH_PASSWORD,
+      }),
+    });
+    if (!loginResponse.ok) {
+      throw new Error(`E2E login failed with HTTP ${loginResponse.status}`);
+    }
+    const loginBody = (await loginResponse.json()) as { accessToken?: string };
+    if (!loginBody.accessToken) {
+      throw new Error("E2E login response missing accessToken.");
+    }
+
+    const { chromium } = await import("@playwright/test");
+    const browser = await chromium.launch();
+    const context = await browser.newContext({ baseURL });
+    await context.addCookies([
+      {
+        name: E2E_AUTH_COOKIE,
+        value: loginBody.accessToken,
+        url: baseURL,
+        httpOnly: true,
+        sameSite: "Lax",
+        secure: false,
+      },
+    ]);
+    await context.storageState({ path: authStatePath });
+    await browser.close();
+
     const state: E2EState = {
       skipped: false,
       baseURL,
@@ -180,6 +225,7 @@ export default async function globalSetup(): Promise<void> {
       apiPid: api.pid ?? undefined,
       proxyPid: proxy.pid ?? undefined,
       frontendPid: frontend.pid ?? undefined,
+      accessToken: loginBody.accessToken,
     };
     fs.writeFileSync(statePath, JSON.stringify(state, null, 2));
   } catch (error) {

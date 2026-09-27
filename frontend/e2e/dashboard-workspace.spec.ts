@@ -1,5 +1,5 @@
 import path from "node:path";
-import { test, expect, createCustomerViaApi, createCaseViaApi, createTaskViaApi, deleteCaseViaApi, deleteCustomerViaApi } from "./helpers";
+import { test, expect, createCustomerViaApi, createCaseViaApi, createTaskViaApi, deleteCaseViaApi, deleteCustomerViaApi, deleteTaskViaApi, bearerHeaders } from "./helpers";
 
 test("dashboard selection, search, real tasks, responsive layout and navigation", async ({ page, request, e2e }) => {
   const customers: number[] = [], cases: number[] = [], tasks: number[] = [];
@@ -13,7 +13,14 @@ test("dashboard selection, search, real tasks, responsive layout and navigation"
     }
     const selected = await createCaseViaApi(request, e2e.apiURL, { customerId: customers[0], title: "Weekend service booking & consultation", description: "Confirm the booking details and preferred time for the weekend consultation." });
     cases.push(selected.id);
-    await request.put(`${e2e.apiURL}/api/cases/${selected.id}`, { data: { title: selected.title, description: "Confirm the booking details and preferred time for the weekend consultation.", status: "InProgress" } });
+    await request.put(`${e2e.apiURL}/api/cases/${selected.id}`, {
+      headers: bearerHeaders(e2e),
+      data: {
+        title: selected.title,
+        description: "Confirm the booking details and preferred time for the weekend consultation.",
+        status: "InProgress",
+      },
+    });
     const second = await createCaseViaApi(request, e2e.apiURL, { customerId: customers[0], title: "Brand refresh" });
     cases.push(second.id);
     for (const title of ["Confirm client details", "Schedule initial consultation"]) {
@@ -24,7 +31,7 @@ test("dashboard selection, search, real tasks, responsive layout and navigation"
     const dashboard = page.getByRole("main", { name: "Operations dashboard" });
     await expect(dashboard.getByRole("heading", { name: "Customer list", exact: true })).toBeVisible();
     await expect(dashboard.getByRole("heading", { name: selected.title, exact: true })).toBeVisible();
-    await expect(dashboard.getByText("Confirm client details", { exact: true })).toBeVisible();
+    await expect(dashboard.getByLabel("Case creation and current tasks").getByText("Confirm client details", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Draft response", exact: true })).toBeEnabled();
     await expect(page.getByRole("button", { name: "Generate summary", exact: true })).toBeEnabled();
     await expect(page.getByRole("button", { name: /Schedule follow-up/i })).toBeDisabled();
@@ -69,7 +76,7 @@ test("dashboard selection, search, real tasks, responsive layout and navigation"
     }
     expect(errors).toEqual([]);
   } finally {
-    for (const id of tasks) await request.delete(`${e2e.apiURL}/api/tasks/${id}`);
+    for (const id of tasks) await deleteTaskViaApi(request, e2e.apiURL, id);
     for (const id of cases) await deleteCaseViaApi(request, e2e.apiURL, id);
     for (const id of customers) await deleteCustomerViaApi(request, e2e.apiURL, id);
   }

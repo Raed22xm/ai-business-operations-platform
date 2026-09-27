@@ -6,7 +6,7 @@ import { EditCustomerForm } from "@/app/customers/edit-customer-form";
 import {
   formatCustomerCreatedAt,
   type Customer,
-} from "@/lib/customers";
+} from "@/lib/customers-shared";
 
 export function CustomerDetails({
   customer,

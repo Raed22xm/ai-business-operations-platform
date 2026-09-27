@@ -1,11 +1,13 @@
 using AiBusiness.Api.Models;
 using AiBusiness.Api.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace AiBusiness.Api.Controllers;
 
 [ApiController]
 [Route("api/assistant")]
+[EnableRateLimiting("assistant")]
 public sealed class AssistantController : ControllerBase
 {
     private readonly CaseAssistantService _assistant;

@@ -1,4 +1,4 @@
-import { test, expect, createCustomerViaApi, createCaseViaApi, createTaskViaApi, deleteCaseViaApi, deleteCustomerViaApi } from "./helpers";
+import { test, expect, createCustomerViaApi, createCaseViaApi, createTaskViaApi, deleteCaseViaApi, deleteCustomerViaApi, deleteTaskViaApi, bearerHeaders } from "./helpers";
 
 test("assistant generate summary and draft response with mock provider", async ({ page, request, e2e }) => {
   const customers: number[] = [];
@@ -47,7 +47,7 @@ test("assistant generate summary and draft response with mock provider", async (
     await expect(page.getByLabel("Draft response text")).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBeTruthy();
   } finally {
-    for (const id of tasks) await request.delete(`${e2e.apiURL}/api/tasks/${id}`);
+    for (const id of tasks) await deleteTaskViaApi(request, e2e.apiURL, id);
     for (const id of cases) await deleteCaseViaApi(request, e2e.apiURL, id);
     for (const id of customers) await deleteCustomerViaApi(request, e2e.apiURL, id);
   }

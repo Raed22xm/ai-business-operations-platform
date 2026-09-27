@@ -7,18 +7,22 @@ import { DeleteTaskDialog } from "@/app/cases/[id]/delete-task-dialog";
 import { EditTaskForm } from "@/app/cases/[id]/edit-task-form";
 import {
   formatTaskDueDate,
+  isTaskOverdue,
+  taskPriorityLabel,
   taskStatusLabel,
   type CaseTask,
-} from "@/lib/tasks";
+} from "@/lib/tasks-shared";
 
 export function CaseTasksPanel({
   caseId,
   tasks,
   loadError,
+  readOnly = false,
 }: {
   caseId: number;
   tasks: CaseTask[] | null;
   loadError: string | null;
+  readOnly?: boolean;
 }) {
   const router = useRouter();
   const tasksHeadingRef = useRef<HTMLHeadingElement>(null);
@@ -76,6 +80,11 @@ export function CaseTasksPanel({
         </p>
       ) : null}
 
+      {readOnly ? (
+        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+          Tasks are read-only while this case is archived.
+        </p>
+      ) : null}
 
       {loadError ? (
         <div className="flex flex-col items-start gap-3 rounded-lg border border-red-200 px-4 py-6 dark:border-red-900">
@@ -106,6 +115,9 @@ export function CaseTasksPanel({
                   Status
                 </th>
                 <th scope="col" className="px-4 py-3 font-medium">
+                  Priority
+                </th>
+                <th scope="col" className="px-4 py-3 font-medium">
                   Due date
                 </th>
                 <th scope="col" className="px-4 py-3 font-medium">
@@ -115,9 +127,9 @@ export function CaseTasksPanel({
             </thead>
             <tbody>
               {tasks.map((task) =>
-                editingId === task.id ? (
+                !readOnly && editingId === task.id ? (
                   <tr key={task.id} className="border-t border-zinc-200 dark:border-zinc-800">
-                    <td colSpan={4} className="px-4 py-3">
+                    <td colSpan={5} className="px-4 py-3">
                       <EditTaskForm
                         caseId={caseId}
                         task={task}
@@ -135,40 +147,54 @@ export function CaseTasksPanel({
                     <td className="px-4 py-3 font-medium break-words">{task.title}</td>
                     <td className="px-4 py-3"><span className="record-status" data-status={task.status}>{taskStatusLabel(task.status)}</span></td>
                     <td className="px-4 py-3">
+                      <span className="task-priority-label" data-priority={task.priority}>
+                        {taskPriorityLabel(task.priority)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
                       {task.dueDate ? (
-                        <time dateTime={task.dueDate}>{formatTaskDueDate(task.dueDate)}</time>
+                        <span className="task-due-cell">
+                          <time dateTime={task.dueDate}>{formatTaskDueDate(task.dueDate)}</time>
+                          {isTaskOverdue(task.dueDate, task.status) ? (
+                            <span className="task-overdue-label" aria-label="Overdue">
+                              Overdue
+                            </span>
+                          ) : null}
+                        </span>
                       ) : (
                         formatTaskDueDate(null)
                       )}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <div className="flex flex-wrap justify-end gap-2">
-                        <button
-                          type="button"
-                          aria-label={`Edit ${task.title}`}
-                          onClick={() => {
-                            setNotice(null);
-                            setEditingId(task.id);
-                          }}
-                          className="rounded-full border border-zinc-300 px-3 py-1 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          aria-label={`Delete ${task.title}`}
-                          onClick={(event) => {
-                            setNotice(null);
-                            setDeleting({
-                              task,
-                              returnFocus: event.currentTarget,
-                            });
-                          }}
-                          className="rounded-full border border-red-700 px-3 py-1 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-400 dark:text-red-400 dark:hover:bg-red-950"
-                        >
-                          Delete
-                        </button>
-                      </div>
+                      {readOnly ? null : (
+                        <div className="flex flex-wrap justify-end gap-2">
+                          <button
+                            type="button"
+                            aria-label={`Edit ${task.title}`}
+                            onClick={() => {
+                              setNotice(null);
+                              setEditingId(task.id);
+                            }}
+                            className="rounded-full border border-zinc-300 px-3 py-1 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`Delete ${task.title}`}
+                            onClick={(event) => {
+                              setNotice(null);
+                              setDeleting({
+                                task,
+                                returnFocus: event.currentTarget,
+                              });
+                            }}
+                            className="rounded-full border border-red-700 px-3 py-1 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-400 dark:text-red-400 dark:hover:bg-red-950"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ),
@@ -178,7 +204,7 @@ export function CaseTasksPanel({
         </div>
       )}
 
-      {loadError ? null : (
+      {loadError || readOnly ? null : (
         <CreateTaskForm
           caseId={caseId}
           onCreated={(message) => {
@@ -188,7 +214,7 @@ export function CaseTasksPanel({
         />
       )}
 
-      {deleting ? (
+      {deleting && !readOnly ? (
         <DeleteTaskDialog
           caseId={caseId}
           task={deleting.task}

@@ -1,3 +1,5 @@
+import "server-only";
+import { apiFetch } from "@/lib/api";
 export type CaseSummaryResult = {
   caseId: number;
   requestSummary: string;
@@ -41,7 +43,7 @@ async function postAssistant(
 
   let response: Response;
   try {
-    response = await fetch(assistantUrl(caseId, action), {
+    response = await apiFetch(assistantUrl(caseId, action), {
       method: "POST",
       headers: { Accept: "application/json" },
       cache: "no-store",
@@ -59,6 +61,22 @@ async function postAssistant(
       status: "error",
       message: "That case was not found. Refresh the dashboard and try again.",
       retryable: false,
+    };
+  }
+
+  if (response.status === 401) {
+    return {
+      status: "error",
+      message: "Your session expired. Sign in again to continue.",
+      retryable: false,
+    };
+  }
+
+  if (response.status === 429) {
+    return {
+      status: "error",
+      message: "Too many AI requests. Wait a minute and try again.",
+      retryable: true,
     };
   }
 

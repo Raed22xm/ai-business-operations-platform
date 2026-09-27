@@ -57,7 +57,9 @@ test.describe("case details tasks keyboard", () => {
       await expect(addTask.getByLabel("Description")).toBeFocused();
       await page.keyboard.press("Tab");
       await expect(addTask.getByLabel("Due date")).toBeFocused();
-      await tabUntilFocused(page, addTask.getByRole("button", { name: "Add task" }));
+      await tabUntilFocused(page, addTask.getByLabel("Priority"));
+      await page.keyboard.press("Tab");
+      await expect(addTask.getByRole("button", { name: "Add task" })).toBeFocused();
 
       await page.getByRole("button", { name: `Edit ${marker} Target` }).focus();
       await page.keyboard.press("Enter");
@@ -71,6 +73,8 @@ test.describe("case details tasks keyboard", () => {
       await page.keyboard.press("Tab");
       await expect(editForm.getByLabel("Due date")).toBeFocused();
       await tabUntilFocused(page, editForm.getByLabel("Status"));
+      await page.keyboard.press("Tab");
+      await expect(editForm.getByLabel("Priority")).toBeFocused();
       await page.keyboard.press("Tab");
       await expect(editForm.getByRole("button", { name: "Save changes" })).toBeFocused();
       await page.keyboard.press("Tab");

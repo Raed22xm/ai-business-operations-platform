@@ -1,15 +1,36 @@
+import "server-only";
+import { apiFetch } from "@/lib/api";
+import type { TaskPriority } from "@/lib/tasks-shared";
+
+export type OutstandingTask = {
+  id: number;
+  caseId: number;
+  caseTitle: string;
+  title: string;
+  dueDate: string | null;
+  status: "Todo" | "InProgress" | "Done";
+  priority: TaskPriority;
+  isOverdue: boolean;
+  isDueToday: boolean;
+};
+
 export type DashboardSummary = {
   totalCustomers: number;
   totalCases: number;
   openCases: number;
   inProgressCases: number;
   closedCases: number;
+  overdueTasks: number;
+  dueTodayTasks: number;
+  outstandingTasks: OutstandingTask[];
+  businessTimeZone: string;
+  businessToday: string;
 };
 
 export async function getDashboardSummary(): Promise<DashboardSummary> {
   let response: Response;
   try {
-    response = await fetch(dashboardSummaryUrl(), {
+    response = await apiFetch(dashboardSummaryUrl(), {
       headers: { Accept: "application/json" },
       cache: "no-store",
     });
@@ -53,7 +74,33 @@ function isDashboardSummary(value: unknown): value is DashboardSummary {
     isNonNegativeInt(row.totalCases) &&
     isNonNegativeInt(row.openCases) &&
     isNonNegativeInt(row.inProgressCases) &&
-    isNonNegativeInt(row.closedCases)
+    isNonNegativeInt(row.closedCases) &&
+    isNonNegativeInt(row.overdueTasks) &&
+    isNonNegativeInt(row.dueTodayTasks) &&
+    Array.isArray(row.outstandingTasks) &&
+    row.outstandingTasks.every(isOutstandingTask) &&
+    typeof row.businessTimeZone === "string" &&
+    typeof row.businessToday === "string"
+  );
+}
+
+function isOutstandingTask(value: unknown): value is OutstandingTask {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const row = value as Record<string, unknown>;
+  return (
+    isNonNegativeInt(row.id) &&
+    row.id > 0 &&
+    isNonNegativeInt(row.caseId) &&
+    row.caseId > 0 &&
+    typeof row.caseTitle === "string" &&
+    typeof row.title === "string" &&
+    (row.dueDate === null || typeof row.dueDate === "string") &&
+    (row.status === "Todo" || row.status === "InProgress" || row.status === "Done") &&
+    (row.priority === "Low" || row.priority === "Normal" || row.priority === "High") &&
+    typeof row.isOverdue === "boolean" &&
+    typeof row.isDueToday === "boolean"
   );
 }
 

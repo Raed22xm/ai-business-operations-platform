@@ -1,7 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
-import { E2E_FRONTEND_PORT, statePath } from "./e2e/env";
+import { authStatePath, E2E_FRONTEND_PORT, statePath } from "./e2e/env";
 
 function baseURLFromState(): string {
   try {
@@ -37,7 +37,19 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      use: { ...devices["Desktop Chrome"] },
+      testIgnore: /auth\.spec\.ts/,
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: authStatePath,
+      },
+    },
+    {
+      name: "chromium-login",
+      testMatch: /auth\.spec\.ts/,
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: { cookies: [], origins: [] },
+      },
     },
   ],
   outputDir: path.join("e2e", ".runtime", "test-results"),

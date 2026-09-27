@@ -13,4 +13,9 @@ public class Case
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public CaseStatus Status { get; set; } = CaseStatus.Open;
     public DateTime CreatedAt { get; set; }
+
+    /// <summary>
+    /// UTC time when the case was archived. Null means the case is active (operational).
+    /// </summary>
+    public DateTime? ArchivedAt { get; set; }
 }

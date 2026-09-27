@@ -4,7 +4,7 @@ import { useActionState, useEffect, useRef, useState, type ReactNode } from "rea
 import { useRouter } from "next/navigation";
 import { createCaseAction } from "@/app/cases/actions";
 import { initialCaseFormState, type CaseField } from "@/lib/case-form-state";
-import { casesPageHref } from "@/lib/cases";
+import { casesPageHref } from "@/lib/cases-shared";
 
 type FormCustomer = {
   id: number;

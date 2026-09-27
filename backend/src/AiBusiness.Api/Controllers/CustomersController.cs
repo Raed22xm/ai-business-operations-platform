@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using AiBusiness.Api.Data;
 using AiBusiness.Api.Models;
+using AiBusiness.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -11,11 +12,23 @@ namespace AiBusiness.Api.Controllers;
 [Route("api/customers")]
 public class CustomersController : ControllerBase
 {
-    private readonly AppDbContext _database;
+    private static readonly string[] ExportHeaders =
+    [
+        "Id",
+        "Name",
+        "Email",
+        "Phone",
+        "Company",
+        "Created At (UTC)",
+    ];
 
-    public CustomersController(AppDbContext database)
+    private readonly AppDbContext _database;
+    private readonly CsvExportService _csvExport;
+
+    public CustomersController(AppDbContext database, CsvExportService csvExport)
     {
         _database = database;
+        _csvExport = csvExport;
     }
 
     /// <summary>
@@ -48,18 +61,7 @@ public class CustomersController : ControllerBase
             return ValidationProblem(ModelState);
         }
 
-        var query = _database.Customers.AsQueryable();
-        var term = search?.Trim();
-        if (!string.IsNullOrEmpty(term))
-        {
-            var needle = term.ToLower();
-            query = query.Where(customer =>
-                customer.Name.ToLower().Contains(needle)
-                || customer.Email.ToLower().Contains(needle)
-                || (customer.Company != null && customer.Company.ToLower().Contains(needle)));
-        }
-
-        query = query.OrderBy(customer => customer.Id);
+        var query = BuildListQuery(search);
 
         if (!paginate)
         {
@@ -67,6 +69,45 @@ public class CustomersController : ControllerBase
         }
 
         return Ok(await Pagination.ToPageAsync(query, resolvedPage, resolvedPageSize));
+    }
+
+    [HttpGet("export")]
+    [EndpointSummary("Export customers CSV")]
+    [EndpointDescription(
+        "Exports all customers matching the same optional `search` filter as the list endpoint, "
+            + "ordered by `id`. Not limited to the current page. "
+            + "Returns UTF-8 CSV (with BOM). Rejects exports larger than CsvExport:MaxRows. "
+            + "Does not change any records.")]
+    [Produces("text/csv")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> Export([FromQuery] string? search = null)
+    {
+        var maxRows = _csvExport.MaxRows;
+        var query = BuildListQuery(search);
+        var matched = await query.CountAsync();
+        if (matched > maxRows)
+        {
+            return Problem(
+                detail:
+                    $"Export matches {matched} rows, which exceeds the limit of {maxRows}. "
+                    + "Narrow your search and try again.",
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Export too large");
+        }
+
+        var customers = await query.ToListAsync();
+        var rows = customers.Select(customer => (IReadOnlyList<string?>)new string?[]
+        {
+            customer.Id.ToString(),
+            customer.Name,
+            customer.Email,
+            customer.Phone,
+            customer.Company,
+            CsvFormatter.FormatUtcTimestamp(customer.CreatedAt),
+        });
+        var csv = CsvFormatter.Build(ExportHeaders, rows);
+        return _csvExport.File(_csvExport.FileName("customers"), csv);
     }
 
     [HttpGet("{id:int}")]
@@ -146,12 +187,14 @@ public class CustomersController : ControllerBase
     [EndpointSummary("Delete customer")]
     [EndpointDescription(
         "Deletes the customer when it has no cases. "
-            + "If the customer still has cases, returns 409 Conflict and leaves all records unchanged.")]
+            + "If the customer still has cases, returns 409 Conflict and leaves all records unchanged. "
+            + "When deletion succeeds, related CustomerNotes rows are removed with the customer (cascade).")]
     [ProducesResponseType(StatusCodes.Status204NoContent, Description = "Customer deleted.")]
     [ProducesResponseType(StatusCodes.Status404NotFound, Description = "No customer with that id.")]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict, Description = "Customer has cases and cannot be deleted.")]
     public async Task<IActionResult> Delete(int id)
     {
+        _database.ChangeTracker.Clear();
         var existing = await _database.Customers.FindAsync(id);
         if (existing is null)
         {
@@ -172,6 +215,22 @@ public class CustomersController : ControllerBase
         }
 
         return NoContent();
+    }
+
+    private IQueryable<Customer> BuildListQuery(string? search)
+    {
+        var query = _database.Customers.AsNoTracking().AsQueryable();
+        var term = search?.Trim();
+        if (!string.IsNullOrEmpty(term))
+        {
+            var needle = term.ToLower();
+            query = query.Where(customer =>
+                customer.Name.ToLower().Contains(needle)
+                || customer.Email.ToLower().Contains(needle)
+                || (customer.Company != null && customer.Company.ToLower().Contains(needle)));
+        }
+
+        return query.OrderBy(customer => customer.Id);
     }
 
     private static bool IsCasesForeignKeyViolation(DbUpdateException exception)

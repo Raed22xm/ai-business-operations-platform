@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useRef } from "react";
 import { deleteCustomerAction } from "@/app/customers/actions";
 import { initialDeleteCustomerState } from "@/lib/customer-form-state";
-import type { Customer } from "@/lib/customers";
+import type { Customer } from "@/lib/customers-shared";
 
 export function DeleteCustomerDialog({
   customer,

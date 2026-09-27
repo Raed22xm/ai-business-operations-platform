@@ -3,13 +3,14 @@
 import { useActionState, useEffect, useRef } from "react";
 import { deleteCaseAction } from "@/app/cases/actions";
 import { initialDeleteCaseState } from "@/lib/case-form-state";
-import type { CaseStatus, CustomerCase } from "@/lib/cases";
+import type { CaseArchiveFilter, CaseStatus, CustomerCase } from "@/lib/cases-shared";
 
 export function DeleteCaseDialog({
   work,
   listCustomerId,
   listStatus,
   listSearch,
+  listArchive,
   listPage,
   soleRowOnPage,
   onClose,
@@ -18,6 +19,7 @@ export function DeleteCaseDialog({
   listCustomerId: number | null;
   listStatus: CaseStatus | null;
   listSearch: string;
+  listArchive: CaseArchiveFilter;
   listPage: number;
   soleRowOnPage: boolean;
   onClose: () => void;
@@ -64,6 +66,7 @@ export function DeleteCaseDialog({
         <input type="hidden" name="listCustomerId" value={listCustomerId ?? ""} />
         <input type="hidden" name="listStatus" value={listStatus ?? ""} />
         <input type="hidden" name="listSearch" value={listSearch} />
+        <input type="hidden" name="listArchive" value={listArchive} />
         <input type="hidden" name="listPage" value={listPage} />
         <input type="hidden" name="soleRow" value={soleRowOnPage ? "1" : "0"} />
         {formError ? (

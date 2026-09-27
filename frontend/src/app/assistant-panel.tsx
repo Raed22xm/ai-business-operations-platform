@@ -8,8 +8,8 @@ import {
   generateCaseSummaryAction,
 } from "@/app/assistant-actions";
 import { CopyBrief } from "@/app/dashboard-tools";
-import { caseStatusLabel, type CustomerCase } from "@/lib/cases";
-import type { Customer } from "@/lib/customers";
+import { caseStatusLabel, type CustomerCase } from "@/lib/cases-shared";
+import type { Customer } from "@/lib/customers-shared";
 
 type OutputKind = "summary" | "draft";
 

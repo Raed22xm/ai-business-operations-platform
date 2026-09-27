@@ -30,6 +30,9 @@ namespace AiBusiness.Api.Data.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<DateTime?>("ArchivedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -53,9 +56,46 @@ namespace AiBusiness.Api.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ArchivedAt");
+
                     b.HasIndex("CustomerId");
 
                     b.ToTable("Cases");
+                });
+
+            modelBuilder.Entity("AiBusiness.Api.Models.CaseActivity", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("ActorName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("CaseId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CaseId", "OccurredAt", "Id");
+
+                    b.ToTable("CaseActivities", (string)null);
                 });
 
             modelBuilder.Entity("AiBusiness.Api.Models.CaseTask", b =>
@@ -78,6 +118,13 @@ namespace AiBusiness.Api.Data.Migrations
                     b.Property<DateOnly?>("DueDate")
                         .HasColumnType("date");
 
+                    b.Property<string>("Priority")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("Normal");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -95,6 +142,57 @@ namespace AiBusiness.Api.Data.Migrations
                     b.HasIndex("CaseId");
 
                     b.ToTable("CaseTasks", (string)null);
+                });
+
+            modelBuilder.Entity("AiBusiness.Api.Models.CaseTemplate", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(5000)
+                        .HasColumnType("character varying(5000)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("CaseTemplates", (string)null);
+                });
+
+            modelBuilder.Entity("AiBusiness.Api.Models.CaseTemplateTask", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CaseTemplateId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CaseTemplateId", "SortOrder");
+
+                    b.ToTable("CaseTemplateTasks", (string)null);
                 });
 
             modelBuilder.Entity("AiBusiness.Api.Models.Customer", b =>
@@ -127,6 +225,40 @@ namespace AiBusiness.Api.Data.Migrations
                     b.ToTable("Customers");
                 });
 
+            modelBuilder.Entity("AiBusiness.Api.Models.CustomerNote", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AuthorName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasMaxLength(5000)
+                        .HasColumnType("character varying(5000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("CustomerId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId", "CreatedAt", "Id");
+
+                    b.ToTable("CustomerNotes", (string)null);
+                });
+
             modelBuilder.Entity("AiBusiness.Api.Models.Case", b =>
                 {
                     b.HasOne("AiBusiness.Api.Models.Customer", "Customer")
@@ -138,6 +270,17 @@ namespace AiBusiness.Api.Data.Migrations
                     b.Navigation("Customer");
                 });
 
+            modelBuilder.Entity("AiBusiness.Api.Models.CaseActivity", b =>
+                {
+                    b.HasOne("AiBusiness.Api.Models.Case", "Case")
+                        .WithMany()
+                        .HasForeignKey("CaseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Case");
+                });
+
             modelBuilder.Entity("AiBusiness.Api.Models.CaseTask", b =>
                 {
                     b.HasOne("AiBusiness.Api.Models.Case", "Case")
@@ -147,6 +290,33 @@ namespace AiBusiness.Api.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Case");
+                });
+
+            modelBuilder.Entity("AiBusiness.Api.Models.CaseTemplateTask", b =>
+                {
+                    b.HasOne("AiBusiness.Api.Models.CaseTemplate", "Template")
+                        .WithMany("Tasks")
+                        .HasForeignKey("CaseTemplateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Template");
+                });
+
+            modelBuilder.Entity("AiBusiness.Api.Models.CustomerNote", b =>
+                {
+                    b.HasOne("AiBusiness.Api.Models.Customer", "Customer")
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Customer");
+                });
+
+            modelBuilder.Entity("AiBusiness.Api.Models.CaseTemplate", b =>
+                {
+                    b.Navigation("Tasks");
                 });
 #pragma warning restore 612, 618
         }

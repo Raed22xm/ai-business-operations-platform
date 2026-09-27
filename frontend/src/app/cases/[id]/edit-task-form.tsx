@@ -3,12 +3,23 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { updateTaskAction } from "@/app/cases/[id]/task-actions";
 import { initialTaskFormState } from "@/lib/task-form-state";
-import { taskStatusLabel, type CaseTask } from "@/lib/tasks";
+import {
+  taskPriorityLabel,
+  taskStatusLabel,
+  type CaseTask,
+  type TaskPriority,
+} from "@/lib/tasks-shared";
 
 const statuses: Array<{ value: "Todo" | "InProgress" | "Done"; label: string }> = [
   { value: "Todo", label: taskStatusLabel("Todo") },
   { value: "InProgress", label: taskStatusLabel("InProgress") },
   { value: "Done", label: taskStatusLabel("Done") },
+];
+
+const priorities: Array<{ value: TaskPriority; label: string }> = [
+  { value: "Low", label: taskPriorityLabel("Low") },
+  { value: "Normal", label: taskPriorityLabel("Normal") },
+  { value: "High", label: taskPriorityLabel("High") },
 ];
 
 export function EditTaskForm({
@@ -28,6 +39,7 @@ export function EditTaskForm({
   const [description, setDescription] = useState(task.description ?? "");
   const [dueDate, setDueDate] = useState(task.dueDate ?? "");
   const [status, setStatus] = useState<"Todo" | "InProgress" | "Done">(task.status);
+  const [priority, setPriority] = useState<TaskPriority>(task.priority);
   const reportedRevision = useRef(0);
 
   useEffect(() => {
@@ -146,6 +158,43 @@ export function EditTaskForm({
             className="text-sm text-red-700 dark:text-red-400"
           >
             {state.fieldErrors.status}
+          </p>
+        ) : null}
+      </div>
+      <div className="flex flex-col gap-1">
+        <label htmlFor={`edit-task-priority-${task.id}`} className="text-sm font-medium">
+          Priority
+          <span aria-hidden="true" className="text-red-700 dark:text-red-400">
+            {" "}
+            *
+          </span>
+        </label>
+        <select
+          id={`edit-task-priority-${task.id}`}
+          name="priority"
+          required
+          value={priority}
+          onChange={(event) => setPriority(event.target.value as TaskPriority)}
+          disabled={pending}
+          aria-invalid={state.fieldErrors.priority ? true : undefined}
+          aria-describedby={
+            state.fieldErrors.priority ? `edit-task-priority-error-${task.id}` : undefined
+          }
+          className="w-full max-w-xs rounded-lg border border-zinc-300 bg-transparent px-3 py-2 text-sm outline-none focus:border-zinc-500 disabled:opacity-60 dark:border-zinc-700"
+        >
+          {priorities.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        {state.fieldErrors.priority ? (
+          <p
+            id={`edit-task-priority-error-${task.id}`}
+            role="alert"
+            className="text-sm text-red-700 dark:text-red-400"
+          >
+            {state.fieldErrors.priority}
           </p>
         ) : null}
       </div>

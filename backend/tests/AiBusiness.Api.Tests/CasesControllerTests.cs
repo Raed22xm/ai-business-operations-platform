@@ -1,3 +1,4 @@
+using System.Text;
 using AiBusiness.Api.Controllers;
 using AiBusiness.Api.Data;
 using AiBusiness.Api.Models;
@@ -672,7 +673,98 @@ public class CasesControllerTests : IDisposable
             "pageSize must be at most 100.");
     }
 
-    private CasesController CreateController() => new(_database);
+    [Fact]
+    public async Task Export_Empty_ReturnsHeadersOnly_DoesNotMutate()
+    {
+        var beforeCount = await _database.Cases.CountAsync();
+        var result = Assert.IsType<FileContentResult>(await CreateController().Export());
+        Assert.Equal("text/csv; charset=utf-8", result.ContentType);
+        Assert.StartsWith("cases-", result.FileDownloadName);
+        Assert.EndsWith(".csv", result.FileDownloadName);
+        var text = StripBom(Encoding.UTF8.GetString(result.FileContents));
+        Assert.Equal(
+            "Id,Customer Id,Customer Name,Title,Description,Status,Created At (UTC),Archived At (UTC)\r\n",
+            text);
+        Assert.Equal(beforeCount, await _database.Cases.CountAsync());
+    }
+
+    [Fact]
+    public async Task Export_AppliesFilters_IncludesAllMatchingRows_NotJustPage()
+    {
+        var customer = await AddCustomer("Export Customer", "export-cases@example.com");
+        var other = await AddCustomer("Other Customer", "other-cases@example.com");
+        var marker = $"CaseExport-{Guid.NewGuid():N}";
+        for (var i = 0; i < 5; i++)
+        {
+            await CreateCase(CreateController(), customer.Id, $"{marker} {i}", null);
+        }
+
+        await CreateCase(CreateController(), other.Id, $"{marker} other", null);
+        var closed = await CreateCase(CreateController(), customer.Id, $"{marker} closed", null);
+        await UpdateCase(closed.Id, $"{marker} closed", null, nameof(CaseStatus.Closed));
+
+        var page = await PageCases(
+            page: 1,
+            pageSize: 2,
+            customerId: customer.Id,
+            status: nameof(CaseStatus.Open),
+            search: marker);
+        Assert.Equal(5, page.TotalCount);
+        Assert.Equal(2, page.Items.Length);
+
+        var result = Assert.IsType<FileContentResult>(
+            await CreateController().Export(customer.Id, nameof(CaseStatus.Open), marker));
+        var text = StripBom(Encoding.UTF8.GetString(result.FileContents));
+        var lines = text.Split("\r\n", StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal(6, lines.Length);
+        Assert.Contains("Export Customer", text);
+        Assert.DoesNotContain("Other Customer", text);
+        Assert.DoesNotContain($"{marker} closed", text);
+        Assert.Contains($"{marker} 0", text);
+        Assert.Contains($"{marker} 4", text);
+        Assert.Contains(" UTC", text);
+    }
+
+    [Fact]
+    public async Task Export_SpecialCharactersAndFormulaLikeValues_AreSafe()
+    {
+        var customer = await AddCustomer("CSV Customer", "csv-case@example.com");
+        await CreateCase(
+            CreateController(),
+            customer.Id,
+            "Title, \"quoted\"",
+            "=CMD|'/C calc'!A0\nsecond");
+
+        var result = Assert.IsType<FileContentResult>(await CreateController().Export(search: "quoted"));
+        var text = StripBom(Encoding.UTF8.GetString(result.FileContents));
+        Assert.Contains("\"Title, \"\"quoted\"\"\"", text);
+        Assert.Contains("'=CMD", text);
+        Assert.DoesNotContain("password", text, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Jwt", text, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Export_ExceedsMaxRows_ReturnsBadRequest_DoesNotMutate()
+    {
+        var customer = await AddCustomer("Limit Customer", "limit-case@example.com");
+        await CreateCase(CreateController(), customer.Id, "One", null);
+        await CreateCase(CreateController(), customer.Id, "Two", null);
+        var beforeCount = await _database.Cases.CountAsync();
+
+        var result = await CreateController(maxRows: 1).Export();
+        var problem = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(StatusCodes.Status400BadRequest, problem.StatusCode);
+        Assert.Equal(beforeCount, await _database.Cases.CountAsync());
+    }
+
+    private static string StripBom(string text) =>
+        text.Length > 0 && text[0] == '\uFEFF' ? text[1..] : text;
+
+    private CasesController CreateController(int maxRows = 10_000) =>
+        new(
+            _database,
+            new AiBusiness.Api.Services.CaseActivityWriter(_database),
+            TestCsvExport.Service(maxRows));
 
     private async Task<Case[]> ListCases(
         int? customerId = null,
@@ -691,7 +783,13 @@ public class CasesControllerTests : IDisposable
         string? status = null,
         string? search = null)
     {
-        var result = await CreateController().GetAll(customerId, status, search, page, pageSize);
+        var result = await CreateController().GetAll(
+            customerId,
+            status,
+            search,
+            archive: null,
+            page,
+            pageSize);
         var ok = Assert.IsType<OkObjectResult>(result);
         return Assert.IsType<PagedResult<Case>>(ok.Value);
     }

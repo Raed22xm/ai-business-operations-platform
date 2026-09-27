@@ -5,7 +5,9 @@ import type { DeleteTaskState, TaskFormState } from "@/lib/task-form-state";
 import {
   createTask,
   deleteTask,
+  isTaskPriority,
   updateTask,
+  type TaskPriority,
   type TaskStatus,
 } from "@/lib/tasks";
 
@@ -25,6 +27,18 @@ export async function createTaskAction(
     };
   }
 
+  const priority = readPriority(text(formData, "priority"));
+  if (!priority) {
+    return {
+      status: "error",
+      message: null,
+      formError: null,
+      fieldErrors: { priority: "Priority must be Low, Normal, or High." },
+      revision: previous.revision,
+      taskId: null,
+    };
+  }
+
   const description = text(formData, "description").trim();
   const dueDate = text(formData, "dueDate").trim();
   const result = await createTask({
@@ -32,6 +46,7 @@ export async function createTaskAction(
     title: text(formData, "title").trim(),
     description: description === "" ? null : description,
     dueDate: dueDate === "" ? null : dueDate,
+    priority,
   });
 
   if (result.status === "success") {
@@ -62,6 +77,18 @@ export async function updateTaskAction(
     };
   }
 
+  const priority = readPriority(text(formData, "priority"));
+  if (!priority) {
+    return {
+      status: "error",
+      message: null,
+      formError: null,
+      fieldErrors: { priority: "Priority must be Low, Normal, or High." },
+      revision: previous.revision,
+      taskId,
+    };
+  }
+
   const description = text(formData, "description").trim();
   const dueDate = text(formData, "dueDate").trim();
   const result = await updateTask(taskId, {
@@ -69,6 +96,7 @@ export async function updateTaskAction(
     description: description === "" ? null : description,
     dueDate: dueDate === "" ? null : dueDate,
     status,
+    priority,
   });
 
   if (result.status === "success") {
@@ -117,4 +145,8 @@ function readStatus(value: string): TaskStatus | null {
     return value;
   }
   return null;
+}
+
+function readPriority(value: string): TaskPriority | null {
+  return isTaskPriority(value) ? value : null;
 }

@@ -1,22 +1,24 @@
+import "server-only";
+import { apiFetch } from "@/lib/api";
 import type { DeleteTaskState, TaskField, TaskFormState } from "@/lib/task-form-state";
+import type { CaseTask, TaskPriority, TaskStatus } from "@/lib/tasks-shared";
 
-export type TaskStatus = "Todo" | "InProgress" | "Done";
-
-export type CaseTask = {
-  id: number;
-  caseId: number;
-  title: string;
-  description: string | null;
-  dueDate: string | null;
-  status: TaskStatus;
-  createdAt: string;
-};
+export type { CaseTask, TaskPriority, TaskStatus } from "@/lib/tasks-shared";
+export {
+  formatTaskDueDate,
+  isTaskDueToday,
+  isTaskOverdue,
+  isTaskPriority,
+  taskPriorityLabel,
+  taskStatusLabel,
+} from "@/lib/tasks-shared";
 
 export type NewTask = {
   caseId: number;
   title: string;
   description: string | null;
   dueDate: string | null;
+  priority: TaskPriority;
 };
 
 export type TaskChanges = {
@@ -24,6 +26,7 @@ export type TaskChanges = {
   description: string | null;
   dueDate: string | null;
   status: TaskStatus;
+  priority: TaskPriority;
 };
 
 export async function getTasksForCase(caseId: number): Promise<CaseTask[]> {
@@ -33,7 +36,7 @@ export async function getTasksForCase(caseId: number): Promise<CaseTask[]> {
 
   let response: Response;
   try {
-    response = await fetch(`${tasksUrl()}?caseId=${caseId}`, {
+    response = await apiFetch(`${tasksUrl()}?caseId=${caseId}`, {
       headers: { Accept: "application/json" },
       cache: "no-store",
     });
@@ -57,7 +60,7 @@ export async function createTask(input: NewTask): Promise<TaskFormState> {
   let response: Response;
 
   try {
-    response = await fetch(tasksUrl(), {
+    response = await apiFetch(tasksUrl(), {
       method: "POST",
       headers: {
         Accept: "application/json",
@@ -105,7 +108,7 @@ export async function updateTask(id: number, input: TaskChanges): Promise<TaskFo
   let response: Response;
 
   try {
-    response = await fetch(`${tasksUrl()}/${id}`, {
+    response = await apiFetch(`${tasksUrl()}/${id}`, {
       method: "PUT",
       headers: {
         Accept: "application/json",
@@ -157,7 +160,7 @@ export async function deleteTask(id: number, title: string): Promise<DeleteTaskS
   let response: Response;
 
   try {
-    response = await fetch(`${tasksUrl()}/${id}`, {
+    response = await apiFetch(`${tasksUrl()}/${id}`, {
       method: "DELETE",
       headers: { Accept: "application/json" },
       cache: "no-store",
@@ -180,30 +183,6 @@ export async function deleteTask(id: number, title: string): Promise<DeleteTaskS
   }
 
   return deleteTaskError(id, `Could not delete the task (${response.status}).`);
-}
-
-export function taskStatusLabel(status: TaskStatus): string {
-  if (status === "Todo") {
-    return "To do";
-  }
-  if (status === "InProgress") {
-    return "In progress";
-  }
-  return "Done";
-}
-
-/** Display date-only values without timezone conversion. */
-export function formatTaskDueDate(value: string | null): string {
-  if (!value) {
-    return "—";
-  }
-
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return value;
-  }
-
-  const [year, month, day] = value.split("-");
-  return `${day}/${month}/${year}`;
 }
 
 function tasksUrl(): string {
@@ -235,6 +214,7 @@ function isCaseTask(value: unknown): value is CaseTask {
     (row.description === null || typeof row.description === "string") &&
     (row.dueDate === null || typeof row.dueDate === "string") &&
     (row.status === "Todo" || row.status === "InProgress" || row.status === "Done") &&
+    (row.priority === "Low" || row.priority === "Normal" || row.priority === "High") &&
     typeof row.createdAt === "string"
   );
 }
@@ -252,11 +232,17 @@ async function readFieldErrors(response: Response): Promise<Partial<Record<TaskF
     }
 
     const fieldErrors: Partial<Record<TaskField, string>> = {};
-    for (const field of ["title", "description", "dueDate", "status", "caseId"] as const) {
+    for (const field of ["title", "description", "dueDate", "status", "priority", "caseId"] as const) {
       const messages = (errors as Record<string, unknown>)[field];
       if (Array.isArray(messages) && typeof messages[0] === "string") {
         const key = field === "caseId" ? "title" : field;
-        if (key === "title" || key === "description" || key === "dueDate" || key === "status") {
+        if (
+          key === "title" ||
+          key === "description" ||
+          key === "dueDate" ||
+          key === "status" ||
+          key === "priority"
+        ) {
           fieldErrors[key] = messages[0];
         }
       }

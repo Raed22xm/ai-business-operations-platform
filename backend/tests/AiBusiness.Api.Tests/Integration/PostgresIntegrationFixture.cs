@@ -1,9 +1,11 @@
+using System.Net.Http.Json;
 using AiBusiness.Api.Data;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Testcontainers.PostgreSql;
+
 
 namespace AiBusiness.Api.Tests.Integration;
 
@@ -22,6 +24,28 @@ public sealed class PostgresIntegrationFixture : IAsyncLifetime
         return _factory!.CreateClient();
     }
 
+    public async Task<HttpClient> CreateAuthenticatedClientAsync()
+    {
+        RequireAvailable();
+        var client = _factory!.CreateClient();
+        var login = await client.PostAsJsonAsync(
+            "/api/auth/login",
+            new { username = ApiWebApplicationFactory.TestUsername, password = ApiWebApplicationFactory.TestPassword });
+        login.EnsureSuccessStatusCode();
+        var body = await login.Content.ReadFromJsonAsync<LoginTokenResponse>(
+            new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        if (body is null || string.IsNullOrWhiteSpace(body.AccessToken))
+        {
+            throw new InvalidOperationException("Login did not return an access token.");
+        }
+
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", body.AccessToken);
+        return client;
+    }
+
+    private sealed record LoginTokenResponse(string AccessToken);
+
     public async Task ResetDataAsync()
     {
         RequireAvailable();
@@ -30,7 +54,7 @@ public sealed class PostgresIntegrationFixture : IAsyncLifetime
         await using var scope = _factory.Services.CreateAsyncScope();
         var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await database.Database.ExecuteSqlRawAsync(
-            """TRUNCATE TABLE "CaseTasks", "Cases", "Customers" RESTART IDENTITY CASCADE;""");
+            """TRUNCATE TABLE "CaseActivities", "CaseTasks", "Cases", "Customers" RESTART IDENTITY CASCADE;""");
     }
 
     public void RequireAvailable()
@@ -103,6 +127,10 @@ public sealed class PostgresIntegrationFixture : IAsyncLifetime
 
 public sealed class ApiWebApplicationFactory : WebApplicationFactory<Program>
 {
+    public const string TestUsername = "e2e-workspace";
+    public const string TestPassword = "e2e-workspace-password";
+    public const string TestSigningKey = "e2e-integration-signing-key-32chars!";
+
     public ApiWebApplicationFactory(string connectionString)
     {
         ConnectionString = connectionString;
@@ -115,6 +143,14 @@ public sealed class ApiWebApplicationFactory : WebApplicationFactory<Program>
         DevelopmentConnectionGuard.EnsureNotDevelopmentDatabase(ConnectionString);
 
         builder.UseSetting("ConnectionStrings:DefaultConnection", ConnectionString);
+        builder.UseSetting("Auth:Username", TestUsername);
+        builder.UseSetting("Auth:Password", TestPassword);
+        builder.UseSetting("Auth:JwtSigningKey", TestSigningKey);
+        builder.UseSetting("Auth:JwtIssuer", "AiBusiness.Api");
+        builder.UseSetting("Auth:JwtAudience", "AiBusiness.Frontend");
+        builder.UseSetting("Auth:JwtExpirationMinutes", "120");
+        builder.UseSetting("RateLimiting:Assistant:PermitLimit", "3");
+        builder.UseSetting("RateLimiting:Assistant:WindowSeconds", "60");
         builder.UseEnvironment("Development");
 
         builder.ConfigureServices(services =>

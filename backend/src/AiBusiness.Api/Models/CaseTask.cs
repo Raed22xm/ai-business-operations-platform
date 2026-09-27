@@ -13,5 +13,7 @@ public class CaseTask
     public DateOnly? DueDate { get; set; }
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public CaseTaskStatus Status { get; set; } = CaseTaskStatus.Todo;
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public CaseTaskPriority Priority { get; set; } = CaseTaskPriority.Normal;
     public DateTime CreatedAt { get; set; }
 }

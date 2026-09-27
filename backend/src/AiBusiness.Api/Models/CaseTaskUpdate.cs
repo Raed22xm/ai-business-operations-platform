@@ -8,5 +8,10 @@ public class CaseTaskUpdate
     public string? Description { get; set; }
     public DateOnly? DueDate { get; set; }
     public string? Status { get; set; }
+    /// <summary>
+    /// Optional. When omitted or null, the existing priority is preserved.
+    /// When present, must be exactly Low, Normal, or High.
+    /// </summary>
+    public string? Priority { get; set; }
     public DateTime CreatedAt { get; set; }
 }

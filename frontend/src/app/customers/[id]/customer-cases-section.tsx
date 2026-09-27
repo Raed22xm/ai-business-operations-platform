@@ -2,8 +2,9 @@ import {
   caseDetailsHref,
   caseStatusLabel,
   formatCaseCreatedAt,
+  isCaseArchived,
   type CustomerCase,
-} from "@/lib/cases";
+} from "@/lib/cases-shared";
 
 export function CustomerCasesSection({
   customerName,
@@ -58,12 +59,19 @@ export function CustomerCasesSection({
               {cases.map((work) => (
                 <tr key={work.id} className="border-t border-zinc-200 dark:border-zinc-800">
                   <td className="px-4 py-3">
-                    <a
-                      href={caseDetailsHref(work.id)}
-                      className="font-medium text-zinc-950 underline underline-offset-4 dark:text-zinc-50"
-                    >
-                      {work.title}
-                    </a>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <a
+                        href={caseDetailsHref(work.id)}
+                        className="font-medium text-zinc-950 underline underline-offset-4 dark:text-zinc-50"
+                      >
+                        {work.title}
+                      </a>
+                      {isCaseArchived(work) ? (
+                        <span className="record-status" data-status="Archived">
+                          Archived
+                        </span>
+                      ) : null}
+                    </div>
                   </td>
                   <td className="px-4 py-3"><span className="record-status" data-status={work.status}>{caseStatusLabel(work.status)}</span></td>
                   <td className="px-4 py-3">{formatCaseCreatedAt(work.createdAt)}</td>

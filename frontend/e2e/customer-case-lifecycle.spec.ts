@@ -4,6 +4,7 @@ import {
   deleteCustomerViaApi,
   expect,
   fillCustomerForm,
+  bearerHeaders,
   test,
   uniqueMarker,
 } from "./helpers";
@@ -35,6 +36,7 @@ test.describe("customer and case lifecycle", () => {
 
       const customerResponse = await request.get(
         `${e2e.apiURL}/api/customers?search=${encodeURIComponent(marker)}`,
+        { headers: bearerHeaders(e2e) },
       );
       expect(customerResponse.ok()).toBeTruthy();
       const customers = (await customerResponse.json()) as Array<{ id: number; name: string }>;
@@ -54,6 +56,7 @@ test.describe("customer and case lifecycle", () => {
 
       const casesResponse = await request.get(
         `${e2e.apiURL}/api/cases?customerId=${createdIds.customerId}&search=${encodeURIComponent(marker)}`,
+        { headers: bearerHeaders(e2e) },
       );
       expect(casesResponse.ok()).toBeTruthy();
       const cases = (await casesResponse.json()) as Array<{ id: number; title: string }>;

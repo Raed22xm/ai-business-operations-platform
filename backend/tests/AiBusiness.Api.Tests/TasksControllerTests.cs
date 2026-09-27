@@ -1,6 +1,7 @@
 using AiBusiness.Api.Controllers;
 using AiBusiness.Api.Data;
 using AiBusiness.Api.Models;
+using AiBusiness.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -307,7 +308,17 @@ public class TasksControllerTests : IDisposable
         Assert.IsType<NotFoundResult>(await CreateController().Delete(int.MaxValue));
     }
 
-    private TasksController CreateController() => new(_database);
+    private TasksController CreateController() =>
+        new(
+            _database,
+            new AiBusiness.Api.Services.CaseActivityWriter(_database),
+            new FixedBusinessClock(new DateOnly(2026, 9, 27)));
+
+    private sealed class FixedBusinessClock(DateOnly today) : IBusinessClock
+    {
+        public DateOnly Today { get; } = today;
+        public string TimeZoneId => "Europe/Copenhagen";
+    }
 
     private async Task<Case> AddCase(string title = "Booking page")
     {

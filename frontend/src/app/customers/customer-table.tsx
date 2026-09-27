@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { DeleteCustomerDialog } from "@/app/customers/delete-customer-dialog";
 import { EditCustomerForm } from "@/app/customers/edit-customer-form";
-import { customerDetailsHref, type Customer } from "@/lib/customers";
+import { customerDetailsHref, type Customer } from "@/lib/customers-shared";
 
 export function CustomerTable({
   customers,

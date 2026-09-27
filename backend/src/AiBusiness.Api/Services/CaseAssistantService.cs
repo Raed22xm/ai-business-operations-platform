@@ -139,8 +139,14 @@ public sealed class CaseAssistantService
             CaseTaskStatus.Done => "Done",
             _ => task.Status.ToString(),
         };
+        var priority = task.Priority switch
+        {
+            CaseTaskPriority.Low => "Low",
+            CaseTaskPriority.High => "High",
+            _ => "Normal",
+        };
         var due = task.DueDate is { } date ? $", due {date:yyyy-MM-dd}" : "";
-        return $"{task.Title.Trim()} ({status}{due})";
+        return $"{task.Title.Trim()} ({status}, {priority}{due})";
     }
 
     private static string StatusLabel(CaseStatus status) =>

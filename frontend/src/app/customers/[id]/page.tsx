@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { CustomerCasesSection } from "@/app/customers/[id]/customer-cases-section";
 import { CustomerDetails } from "@/app/customers/[id]/customer-details";
+import { CustomerNotesSection } from "@/app/customers/[id]/customer-notes-section";
 import { casesPageHref, getCases } from "@/lib/cases";
 import {
   customersPageHref,
@@ -75,6 +76,7 @@ export default async function CustomerDetailsPage({
         cases={casesResult.cases}
         loadError={casesResult.error}
       />
+      <CustomerNotesSection customerId={customer.id} />
     </main>
   );
 }
@@ -84,7 +86,7 @@ async function loadCustomerCases(customerId: number): Promise<{
   error: string | null;
 }> {
   try {
-    const cases = await getCases({ customerId });
+    const cases = await getCases({ customerId, archive: "all" });
     return { cases, error: null };
   } catch {
     return {
