@@ -132,6 +132,8 @@ public class AssistantControllerTests : IDisposable
 
         var problem = Assert.IsType<ObjectResult>(result);
         Assert.Equal(StatusCodes.Status502BadGateway, problem.StatusCode);
+        Assert.IsNotType<CaseSummaryResponse>(problem.Value);
+        Assert.DoesNotContain("mock", problem.Value?.ToString() ?? "", StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -142,6 +144,21 @@ public class AssistantControllerTests : IDisposable
 
         var result = await controller.DraftResponse(work.Id, CancellationToken.None);
 
+        var problem = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(StatusCodes.Status502BadGateway, problem.StatusCode);
+        Assert.IsNotType<DraftResponseResponse>(problem.Value);
+    }
+
+    [Fact]
+    public async Task Summarize_ProviderFailure_DoesNotReturnMockSuccess()
+    {
+        var work = await SeedCaseWithTasks();
+        // Real DI registers either mock OR HTTP client — never falls back after a live failure.
+        var controller = CreateController(new FailingOpenAiClient(new HttpRequestException("upstream 500")));
+
+        var result = await controller.SummarizeCase(work.Id, CancellationToken.None);
+
+        Assert.IsNotType<OkObjectResult>(result);
         var problem = Assert.IsType<ObjectResult>(result);
         Assert.Equal(StatusCodes.Status502BadGateway, problem.StatusCode);
     }
