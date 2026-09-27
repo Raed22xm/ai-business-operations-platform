@@ -10,6 +10,7 @@ export type Customer = {
   email: string;
   phone: string | null;
   company: string | null;
+  createdAt: string;
 };
 
 export type NewCustomer = {
@@ -19,8 +20,56 @@ export type NewCustomer = {
   company: string | null;
 };
 
-export async function getCustomers(): Promise<Customer[]> {
-  const response = await fetch(customersUrl(), { cache: "no-store" });
+export async function getCustomer(id: number): Promise<Customer | null> {
+  if (!Number.isInteger(id) || id <= 0) {
+    return null;
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`${customersUrl()}/${id}`, {
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+    });
+  } catch {
+    throw new Error("Could not load the customer. Check that the API is running.");
+  }
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    throw new Error(`Could not load the customer (${response.status}).`);
+  }
+
+  const body: unknown = await response.json();
+  if (!isCustomer(body)) {
+    throw new Error("Customer detail had an unexpected shape.");
+  }
+
+  return body;
+}
+
+export type PagedCustomers = {
+  items: Customer[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+};
+
+export const CUSTOMERS_PAGE_SIZE = 20;
+
+export async function getCustomers(options?: {
+  search?: string;
+}): Promise<Customer[]> {
+  const url = new URL(customersUrl());
+  const search = options?.search?.trim();
+  if (search) {
+    url.searchParams.set("search", search);
+  }
+
+  const response = await fetch(url, { cache: "no-store" });
 
   if (!response.ok) {
     throw new Error(`Could not load customers (${response.status}).`);
@@ -33,6 +82,102 @@ export async function getCustomers(): Promise<Customer[]> {
   }
 
   return body;
+}
+
+export async function getCustomersPage(options?: {
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}): Promise<PagedCustomers> {
+  const url = new URL(customersUrl());
+  const search = options?.search?.trim();
+  if (search) {
+    url.searchParams.set("search", search);
+  }
+  url.searchParams.set("page", String(options?.page ?? 1));
+  url.searchParams.set("pageSize", String(options?.pageSize ?? CUSTOMERS_PAGE_SIZE));
+
+  const response = await fetch(url, { cache: "no-store" });
+
+  if (!response.ok) {
+    throw new Error(`Could not load customers (${response.status}).`);
+  }
+
+  const body: unknown = await response.json();
+  if (!isPagedCustomers(body)) {
+    throw new Error("Customer page had an unexpected shape.");
+  }
+
+  return body;
+}
+
+export function customersPageHref(
+  search: string | null,
+  page: number | null = null,
+): string {
+  const params = new URLSearchParams();
+  const trimmed = search?.trim() ?? "";
+  if (trimmed !== "") {
+    params.set("search", trimmed);
+  }
+  if (page !== null && page > 1) {
+    params.set("page", String(page));
+  }
+
+  const query = params.toString();
+  return query === "" ? "/customers" : `/customers?${query}`;
+}
+
+export function customerDetailsHref(
+  id: number,
+  search: string | null = null,
+  page: number | null = null,
+): string {
+  const params = new URLSearchParams();
+  const trimmed = search?.trim() ?? "";
+  if (trimmed !== "") {
+    params.set("search", trimmed);
+  }
+  if (page !== null && page > 1) {
+    params.set("page", String(page));
+  }
+
+  const query = params.toString();
+  return query === "" ? `/customers/${id}` : `/customers/${id}?${query}`;
+}
+
+function isPagedCustomers(value: unknown): value is PagedCustomers {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const row = value as Record<string, unknown>;
+  return (
+    Array.isArray(row.items) &&
+    row.items.every(isCustomer) &&
+    typeof row.page === "number" &&
+    Number.isInteger(row.page) &&
+    row.page >= 1 &&
+    typeof row.pageSize === "number" &&
+    Number.isInteger(row.pageSize) &&
+    row.pageSize >= 1 &&
+    typeof row.totalCount === "number" &&
+    Number.isInteger(row.totalCount) &&
+    row.totalCount >= 0
+  );
+}
+
+export function formatCustomerCreatedAt(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return `${new Intl.DateTimeFormat("en-GB", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "UTC",
+  }).format(date)} UTC`;
 }
 
 export function createCustomer(input: NewCustomer): Promise<CustomerFormState> {
@@ -236,7 +381,8 @@ function isCustomer(value: unknown): value is Customer {
     typeof row.name === "string" &&
     typeof row.email === "string" &&
     isOptionalText(row.phone) &&
-    isOptionalText(row.company)
+    isOptionalText(row.company) &&
+    typeof row.createdAt === "string"
   );
 }
 

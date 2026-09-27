@@ -473,9 +473,198 @@ public class CustomersControllerTests : IDisposable
         Assert.Equal(createdAt, found.CreatedAt);
     }
 
+    [Fact]
+    public async Task GetAll_Search_MatchesNameEmailOrCompany_CaseInsensitive()
+    {
+        await CreateStored("Alpha Desk", "alpha@example.com", null, "North Studio");
+        var byEmail = await CreateStored("Beta Desk", "needle-email@example.com", null, null);
+        var byCompany = await CreateStored("Gamma Desk", "gamma@example.com", null, "Needle Co");
+        var byName = await CreateStored("Needle Name", "name@example.com", null, null);
+
+        var matches = await ListCustomers("NeEdLe");
+        Assert.Equal(
+            new[] { byEmail.Id, byCompany.Id, byName.Id },
+            matches.Select(c => c.Id).OrderBy(id => id).ToArray());
+        Assert.DoesNotContain(matches, c => c.Name == "Alpha Desk");
+    }
+
+    [Fact]
+    public async Task GetAll_Search_TrimsWhitespace_BlankMeansNoFilter()
+    {
+        var first = await CreateStored("Keep A", "keep-a@example.com", null, null);
+        var second = await CreateStored("Keep B", "keep-b@example.com", null, null);
+
+        var blank = await ListCustomers("   ");
+        Assert.Equal(new[] { first.Id, second.Id }, blank.Select(c => c.Id));
+
+        var trimmed = await ListCustomers("  Keep A  ");
+        var only = Assert.Single(trimmed);
+        Assert.Equal(first.Id, only.Id);
+    }
+
+    [Fact]
+    public async Task GetAll_Search_TreatsSpecialCharactersLiterally()
+    {
+        var literal = await CreateStored("Percent %_ Co", "percent@example.com", null, "100% literal");
+        await CreateStored("Other", "other-search@example.com", null, "plain");
+
+        var byName = await ListCustomers("%_");
+        var onlyName = Assert.Single(byName);
+        Assert.Equal(literal.Id, onlyName.Id);
+
+        var byCompany = await ListCustomers("100%");
+        var onlyCompany = Assert.Single(byCompany);
+        Assert.Equal(literal.Id, onlyCompany.Id);
+    }
+
+    [Fact]
+    public async Task GetAll_Search_EmptyWhenNoneMatch_PreservesOrderingWithoutSearch()
+    {
+        var first = await CreateStored("Order One", "order1@example.com", null, null);
+        var second = await CreateStored("Order Two", "order2@example.com", null, null);
+
+        Assert.Empty(await ListCustomers("zzz-no-match"));
+
+        var all = await ListCustomers(null);
+        Assert.Equal(new[] { first.Id, second.Id }, all.Select(c => c.Id));
+        Assert.All(all, c =>
+        {
+            Assert.False(string.IsNullOrWhiteSpace(c.Name));
+            Assert.False(string.IsNullOrWhiteSpace(c.Email));
+            Assert.True(c.Id > 0);
+        });
+    }
+
+    [Fact]
+    public async Task GetAll_WithoutPagination_StillReturnsArray()
+    {
+        var first = await CreateStored("Array One", "array1@example.com", null, null);
+        var second = await CreateStored("Array Two", "array2@example.com", null, null);
+
+        var ok = Assert.IsType<OkObjectResult>(await CreateController().GetAll());
+        var customers = Assert.IsType<Customer[]>(ok.Value);
+        Assert.Equal(new[] { first.Id, second.Id }, customers.Select(c => c.Id));
+    }
+
+    [Fact]
+    public async Task GetAll_Pagination_ReturnsPageMetadata_AndSlicesItems()
+    {
+        for (var index = 1; index <= 5; index++)
+        {
+            await CreateStored($"Page Cust {index}", $"page-cust-{index}@example.com", null, null);
+        }
+
+        var first = await PageCustomers(page: 1, pageSize: 2);
+        Assert.Equal(1, first.Page);
+        Assert.Equal(2, first.PageSize);
+        Assert.Equal(5, first.TotalCount);
+        Assert.Equal(2, first.Items.Length);
+        Assert.Equal(
+            new[] { "Page Cust 1", "Page Cust 2" },
+            first.Items.Select(c => c.Name).ToArray());
+
+        var second = await PageCustomers(page: 2, pageSize: 2);
+        Assert.Equal(new[] { "Page Cust 3", "Page Cust 4" }, second.Items.Select(c => c.Name).ToArray());
+
+        var third = await PageCustomers(page: 3, pageSize: 2);
+        Assert.Equal(new[] { "Page Cust 5" }, third.Items.Select(c => c.Name).ToArray());
+    }
+
+    [Fact]
+    public async Task GetAll_Pagination_DefaultsPageAndPageSize_WhenOneProvided()
+    {
+        for (var index = 1; index <= 21; index++)
+        {
+            await CreateStored($"Default {index}", $"default-{index}@example.com", null, null);
+        }
+
+        var byPageOnly = await PageCustomers(page: 1, pageSize: null);
+        Assert.Equal(1, byPageOnly.Page);
+        Assert.Equal(20, byPageOnly.PageSize);
+        Assert.Equal(21, byPageOnly.TotalCount);
+        Assert.Equal(20, byPageOnly.Items.Length);
+
+        var bySizeOnly = await PageCustomers(page: null, pageSize: 5);
+        Assert.Equal(1, bySizeOnly.Page);
+        Assert.Equal(5, bySizeOnly.PageSize);
+        Assert.Equal(5, bySizeOnly.Items.Length);
+    }
+
+    [Fact]
+    public async Task GetAll_Pagination_OutOfRangePage_ReturnsEmptyItems_WithTotalCount()
+    {
+        await CreateStored("Only One", "only-one@example.com", null, null);
+
+        var page = await PageCustomers(page: 9, pageSize: 20);
+        Assert.Empty(page.Items);
+        Assert.Equal(1, page.TotalCount);
+        Assert.Equal(9, page.Page);
+        Assert.Equal(20, page.PageSize);
+    }
+
+    [Fact]
+    public async Task GetAll_Pagination_AppliesSearchBeforeCountAndSlice()
+    {
+        await CreateStored("Other", "other-page@example.com", null, null);
+        await CreateStored("Needle A", "needle-a@example.com", null, null);
+        await CreateStored("Needle B", "needle-b@example.com", null, null);
+        await CreateStored("Needle C", "needle-c@example.com", null, null);
+
+        var page = await PageCustomers(page: 1, pageSize: 2, search: "Needle");
+        Assert.Equal(3, page.TotalCount);
+        Assert.Equal(new[] { "Needle A", "Needle B" }, page.Items.Select(c => c.Name).ToArray());
+    }
+
+    [Fact]
+    public async Task GetAll_Pagination_InvalidValues_ReturnValidationErrors()
+    {
+        AssertValidationProblem(
+            await CreateController().GetAll(page: 0, pageSize: 20),
+            "page");
+        AssertValidationProblem(
+            await CreateController().GetAll(page: 1, pageSize: 0),
+            "pageSize");
+        AssertValidationProblem(
+            await CreateController().GetAll(page: 1, pageSize: 101),
+            "pageSize");
+    }
+
+    private async Task<Customer> CreateStored(
+        string name,
+        string email,
+        string? phone,
+        string? company)
+    {
+        var result = await CreateController().Create(new Customer
+        {
+            Name = name,
+            Email = email,
+            Phone = phone,
+            Company = company,
+        });
+        var created = Assert.IsType<CreatedAtActionResult>(result);
+        return Assert.IsType<Customer>(created.Value);
+    }
+
+    private async Task<Customer[]> ListCustomers(string? search)
+    {
+        var ok = Assert.IsType<OkObjectResult>(await CreateController().GetAll(search));
+        return Assert.IsType<Customer[]>(ok.Value);
+    }
+
+    private async Task<PagedResult<Customer>> PageCustomers(
+        int? page,
+        int? pageSize,
+        string? search = null)
+    {
+        var ok = Assert.IsType<OkObjectResult>(
+            await CreateController().GetAll(search, page, pageSize));
+        return Assert.IsType<PagedResult<Customer>>(ok.Value);
+    }
+
     private static async Task<Customer[]> SnapshotAll(CustomersController controller)
     {
-        var ok = Assert.IsType<OkObjectResult>(await controller.GetAll());
+        var ok = Assert.IsType<OkObjectResult>(await controller.GetAll(null));
         return Assert.IsType<Customer[]>(ok.Value);
     }
 

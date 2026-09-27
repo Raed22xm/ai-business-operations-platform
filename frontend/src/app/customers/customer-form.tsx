@@ -1,11 +1,13 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createCustomerAction } from "@/app/customers/actions";
 import {
   initialCustomerFormState,
   type CustomerField,
 } from "@/lib/customer-form-state";
+import { customersPageHref } from "@/lib/customers";
 
 const emptyValues: Record<CustomerField, string> = {
   name: "",
@@ -28,17 +30,28 @@ const fields: Array<{
 ];
 
 export function CustomerForm() {
+  const router = useRouter();
   const [state, formAction, pending] = useActionState(
     createCustomerAction,
     initialCustomerFormState,
   );
   const [values, setValues] = useState(emptyValues);
   const [clearedRevision, setClearedRevision] = useState(state.revision);
+  const shownRevision = useRef(0);
 
   if (state.status === "success" && state.revision !== clearedRevision) {
     setClearedRevision(state.revision);
     setValues(emptyValues);
   }
+
+  useEffect(() => {
+    if (state.status !== "success" || shownRevision.current === state.revision) {
+      return;
+    }
+
+    shownRevision.current = state.revision;
+    router.replace(customersPageHref(null));
+  }, [router, state.revision, state.status]);
 
   return (
     <form

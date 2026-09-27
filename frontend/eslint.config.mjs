@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Playwright suite (Node test runner, not Next.js app code):
+    "e2e/**",
+    "playwright.config.ts",
   ]),
 ]);
 

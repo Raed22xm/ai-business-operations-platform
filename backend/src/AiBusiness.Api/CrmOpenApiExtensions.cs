@@ -1,0 +1,243 @@
+using AiBusiness.Api.Models;
+using Microsoft.AspNetCore.OpenApi;
+using Microsoft.OpenApi;
+
+namespace AiBusiness.Api;
+
+/// <summary>
+/// Enriches the generated OpenAPI document for CRM endpoints without changing runtime behavior.
+/// </summary>
+public static class CrmOpenApiExtensions
+{
+    public static OpenApiOptions AddCrmDocumentation(this OpenApiOptions options)
+    {
+        options.AddSchemaTransformer(TransformSchemaAsync);
+        options.AddOperationTransformer(TransformOperationAsync);
+        return options;
+    }
+
+    private static Task TransformSchemaAsync(
+        OpenApiSchema schema,
+        OpenApiSchemaTransformerContext context,
+        CancellationToken cancellationToken)
+    {
+        var type = context.JsonTypeInfo.Type;
+
+        if (type == typeof(Customer))
+        {
+            schema.Description =
+                "Customer record. On create/update requests, `name` and `email` are required; "
+                + "`phone` and `company` are optional. `id` and `createdAt` are server-controlled "
+                + "(ignored on input, assigned or preserved by the API).";
+            schema.Required ??= new HashSet<string>();
+            schema.Required.Add("name");
+            schema.Required.Add("email");
+            DescribeProperty(schema, "id", "Server-assigned identifier. Ignored on create and update.");
+            DescribeProperty(schema, "name", "Required. Non-blank display name.");
+            DescribeProperty(schema, "email", "Required. Must be a valid email address.");
+            DescribeProperty(schema, "phone", "Optional phone number. Null clears the value on update.");
+            DescribeProperty(schema, "company", "Optional company name. Null clears the value on update.");
+            DescribeProperty(schema, "createdAt", "UTC timestamp set by the server on create. Not changed by update.");
+        }
+        else if (type == typeof(Case))
+        {
+            schema.Description =
+                "Support case. On create, `customerId` and `title` are required; `description` is optional. "
+                + "`id`, `status`, and `createdAt` are server-controlled. Create always stores status `Open`.";
+            schema.Required ??= new HashSet<string>();
+            schema.Required.Add("customerId");
+            schema.Required.Add("title");
+            DescribeProperty(schema, "id", "Server-assigned identifier. Ignored on create.");
+            DescribeProperty(schema, "customerId", "Required on create. Must reference an existing customer.");
+            DescribeProperty(schema, "title", "Required. 1–200 characters after trim.");
+            DescribeProperty(schema, "description", "Optional. Blank or whitespace is stored as null.");
+            DescribeProperty(
+                schema,
+                "status",
+                "One of Open, InProgress, Closed. Create always forces Open; clients cannot set status on create.");
+            DescribeProperty(schema, "createdAt", "UTC timestamp set by the server on create.");
+        }
+        else if (type == typeof(CaseUpdate))
+        {
+            schema.Description =
+                "Case update body. Only `title`, `description`, and `status` are applied. "
+                + "`id`, `customerId`, and `createdAt` in the body are ignored. "
+                + "`status` must be exactly Open, InProgress, or Closed (case-sensitive).";
+            schema.Required ??= new HashSet<string>();
+            schema.Required.Add("title");
+            schema.Required.Add("status");
+            DescribeProperty(schema, "id", "Ignored. The path `{id}` identifies the case.");
+            DescribeProperty(schema, "customerId", "Ignored. Customer ownership cannot change.");
+            DescribeProperty(schema, "title", "Required. 1–200 characters after trim.");
+            DescribeProperty(schema, "description", "Optional. Blank or whitespace clears the description.");
+            DescribeProperty(
+                schema,
+                "status",
+                "Required. Exactly one of: Open, InProgress, Closed.");
+            DescribeProperty(schema, "createdAt", "Ignored. Creation time cannot change.");
+        }
+        else if (type == typeof(CaseStatus))
+        {
+            schema.Description = "Allowed values: Open, InProgress, Closed.";
+        }
+        else if (type == typeof(DashboardSummary))
+        {
+            schema.Description =
+                "Dashboard totals calculated in the database. Empty tables yield zeros.";
+            DescribeProperty(schema, "totalCustomers", "Number of customers.");
+            DescribeProperty(schema, "totalCases", "Number of cases.");
+            DescribeProperty(schema, "openCases", "Cases with status Open.");
+            DescribeProperty(schema, "inProgressCases", "Cases with status InProgress.");
+            DescribeProperty(schema, "closedCases", "Cases with status Closed.");
+        }
+        else if (IsPagedResult(type, out var itemName))
+        {
+            schema.Description =
+                $"Paginated list returned when `page` and/or `pageSize` is provided. "
+                + $"Contains `{itemName}` items plus page metadata.";
+            DescribeProperty(schema, "items", "Items for the requested page (may be empty).");
+            DescribeProperty(schema, "page", "1-based page number (default 1).");
+            DescribeProperty(schema, "pageSize", "Page size (default 20, maximum 100).");
+            DescribeProperty(schema, "totalCount", "Total matching rows before paging.");
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private static async Task TransformOperationAsync(
+        OpenApiOperation operation,
+        OpenApiOperationTransformerContext context,
+        CancellationToken cancellationToken)
+    {
+        if (operation.Responses is null)
+        {
+            return;
+        }
+
+        if (IsCreateAction(context)
+            && operation.Responses.TryGetValue("201", out var created)
+            && created is OpenApiResponse createdResponse)
+        {
+            createdResponse.Headers ??= new Dictionary<string, IOpenApiHeader>();
+            createdResponse.Headers["Location"] = new OpenApiHeader
+            {
+                Description =
+                    "Absolute or relative URL of the created resource (CreatedAtAction location).",
+                Schema = new OpenApiSchema { Type = JsonSchemaType.String },
+            };
+        }
+
+        if (IsCustomerDelete(context)
+            && operation.Responses.TryGetValue("409", out var conflict)
+            && conflict is OpenApiResponse conflictResponse)
+        {
+            conflictResponse.Description ??=
+                "Customer still has cases and cannot be deleted. Detail: "
+                + "\"This customer has cases and cannot be deleted.\" Records are unchanged.";
+        }
+
+        if (TryGetListItemType(context, out var itemType)
+            && operation.Responses.TryGetValue("200", out var ok)
+            && ok is OpenApiResponse okResponse)
+        {
+            var arraySchema = await context.GetOrCreateSchemaAsync(
+                itemType.MakeArrayType(),
+                cancellationToken: cancellationToken);
+            var pageSchema = await context.GetOrCreateSchemaAsync(
+                typeof(PagedResult<>).MakeGenericType(itemType),
+                cancellationToken: cancellationToken);
+
+            okResponse.Description =
+                "Without page/pageSize: JSON array. With page and/or pageSize: paginated object "
+                + "({ items, page, pageSize, totalCount }).";
+            okResponse.Content ??= new Dictionary<string, OpenApiMediaType>();
+            okResponse.Content["application/json"] = new OpenApiMediaType
+            {
+                Schema = new OpenApiSchema
+                {
+                    OneOf = new List<IOpenApiSchema> { arraySchema, pageSchema },
+                },
+            };
+        }
+    }
+
+    private static bool TryGetListItemType(OpenApiOperationTransformerContext context, out Type itemType)
+    {
+        itemType = typeof(object);
+        var method = context.Description.HttpMethod;
+        var path = context.Description.RelativePath ?? string.Empty;
+        if (!string.Equals(method, "GET", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (path.Equals("api/customers", StringComparison.OrdinalIgnoreCase))
+        {
+            itemType = typeof(Customer);
+            return true;
+        }
+
+        if (path.Equals("api/cases", StringComparison.OrdinalIgnoreCase))
+        {
+            itemType = typeof(Case);
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsCreateAction(OpenApiOperationTransformerContext context)
+    {
+        var method = context.Description.HttpMethod;
+        var path = context.Description.RelativePath ?? string.Empty;
+        return string.Equals(method, "POST", StringComparison.OrdinalIgnoreCase)
+            && (path.Equals("api/customers", StringComparison.OrdinalIgnoreCase)
+                || path.Equals("api/cases", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsCustomerDelete(OpenApiOperationTransformerContext context)
+    {
+        var method = context.Description.HttpMethod;
+        var path = context.Description.RelativePath ?? string.Empty;
+        return string.Equals(method, "DELETE", StringComparison.OrdinalIgnoreCase)
+            && path.Equals("api/customers/{id}", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsPagedResult(Type type, out string itemName)
+    {
+        itemName = "item";
+        if (!type.IsGenericType || type.GetGenericTypeDefinition() != typeof(PagedResult<>))
+        {
+            return false;
+        }
+
+        itemName = type.GenericTypeArguments[0].Name;
+        return true;
+    }
+
+    private static void DescribeProperty(OpenApiSchema schema, string name, string description)
+    {
+        if (schema.Properties is null)
+        {
+            return;
+        }
+
+        if (!schema.Properties.TryGetValue(name, out var property))
+        {
+            // System.Text.Json may emit camelCase keys already; try as-is then camelCase.
+            var camel = char.ToLowerInvariant(name[0]) + name[1..];
+            if (!schema.Properties.TryGetValue(camel, out property))
+            {
+                return;
+            }
+
+            name = camel;
+        }
+
+        if (property is OpenApiSchema concrete)
+        {
+            concrete.Description = description;
+            schema.Properties[name] = concrete;
+        }
+    }
+}

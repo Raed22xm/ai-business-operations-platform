@@ -3,9 +3,17 @@
 import { useState } from "react";
 import { DeleteCustomerDialog } from "@/app/customers/delete-customer-dialog";
 import { EditCustomerForm } from "@/app/customers/edit-customer-form";
-import type { Customer } from "@/lib/customers";
+import { customerDetailsHref, type Customer } from "@/lib/customers";
 
-export function CustomerTable({ customers }: { customers: Customer[] }) {
+export function CustomerTable({
+  customers,
+  listSearch,
+  listPage,
+}: {
+  customers: Customer[];
+  listSearch: string;
+  listPage: number;
+}) {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [deleting, setDeleting] = useState<Customer | null>(null);
   const editing = customers.find((customer) => customer.id === editingId) ?? null;
@@ -23,6 +31,9 @@ export function CustomerTable({ customers }: { customers: Customer[] }) {
         <DeleteCustomerDialog
           key={deleting.id}
           customer={deleting}
+          listSearch={listSearch}
+          listPage={listPage}
+          soleRowOnPage={customers.length === 1}
           onClose={() => setDeleting(null)}
         />
       ) : null}
@@ -50,7 +61,18 @@ export function CustomerTable({ customers }: { customers: Customer[] }) {
           <tbody>
             {customers.map((customer) => (
               <tr key={customer.id} className="border-t border-zinc-200 dark:border-zinc-800">
-                <td className="px-4 py-3">{customer.name}</td>
+                <td className="px-4 py-3">
+                  <a
+                    href={customerDetailsHref(
+                      customer.id,
+                      listSearch || null,
+                      listPage > 1 ? listPage : null,
+                    )}
+                    className="font-medium text-zinc-950 underline underline-offset-4 dark:text-zinc-50"
+                  >
+                    {customer.name}
+                  </a>
+                </td>
                 <td className="px-4 py-3">{customer.email}</td>
                 <td className="px-4 py-3">
                   <OptionalValue value={customer.phone} />

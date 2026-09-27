@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { updateCustomerAction } from "@/app/customers/actions";
 import {
   initialCustomerFormState,
@@ -24,9 +24,11 @@ const fields: Array<{
 export function EditCustomerForm({
   customer,
   onCancel,
+  onSaved,
 }: {
   customer: Customer;
   onCancel: () => void;
+  onSaved?: (message: string) => void;
 }) {
   const updateAction = updateCustomerAction.bind(null, customer.id);
   const [state, formAction, pending] = useActionState(
@@ -34,6 +36,16 @@ export function EditCustomerForm({
     initialCustomerFormState,
   );
   const [values, setValues] = useState(valuesFrom(customer));
+  const reportedRevision = useRef(0);
+
+  useEffect(() => {
+    if (!onSaved || state.status !== "success" || reportedRevision.current === state.revision) {
+      return;
+    }
+
+    reportedRevision.current = state.revision;
+    onSaved(state.message ?? `${customer.name} was updated.`);
+  }, [customer.name, onSaved, state.message, state.revision, state.status]);
 
   return (
     <form
@@ -85,7 +97,7 @@ export function EditCustomerForm({
         );
       })}
       <div className="flex flex-col items-start gap-3 sm:col-span-2">
-        {state.status === "success" && state.message ? (
+        {!onSaved && state.status === "success" && state.message ? (
           <p role="status" className="text-sm text-green-700 dark:text-green-400">
             {state.message}
           </p>

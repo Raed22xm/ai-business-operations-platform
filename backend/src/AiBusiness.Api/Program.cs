@@ -1,3 +1,4 @@
+using AiBusiness.Api;
 using AiBusiness.Api.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -11,7 +12,7 @@ if (string.IsNullOrWhiteSpace(connectionString))
 }
 
 builder.Services.AddControllers();
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApi(options => options.AddCrmDocumentation());
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(connectionString));
 
@@ -27,3 +28,5 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+public partial class Program;

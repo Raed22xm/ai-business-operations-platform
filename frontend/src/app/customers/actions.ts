@@ -1,11 +1,18 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import type {
   CustomerFormState,
   DeleteCustomerState,
 } from "@/lib/customer-form-state";
-import { createCustomer, deleteCustomer, updateCustomer } from "@/lib/customers";
+import {
+  createCustomer,
+  customersPageHref,
+  deleteCustomer,
+  updateCustomer,
+} from "@/lib/customers";
+import { withNotice } from "@/lib/flash-notice";
 
 export async function createCustomerAction(
   _previous: CustomerFormState,
@@ -32,6 +39,7 @@ export async function updateCustomerAction(
 
   if (result.status === "success") {
     revalidatePath("/customers");
+    revalidatePath(`/customers/${id}`);
   }
 
   return {
@@ -58,11 +66,30 @@ export async function deleteCustomerAction(
 
   const result = await deleteCustomer(id, name);
 
-  if (result.status === "success") {
+  if (result.status === "success" && result.message) {
     revalidatePath("/customers");
+    const search = text(formData, "listSearch").trim();
+    const page = parseListPage(text(formData, "listPage"));
+    const soleRow = text(formData, "soleRow") === "1";
+    const destinationPage =
+      soleRow && page > 1 ? (page - 1 > 1 ? page - 1 : null) : page > 1 ? page : null;
+    redirect(
+      withNotice(
+        customersPageHref(search === "" ? null : search, destinationPage),
+        result.message,
+      ),
+    );
   }
 
   return result;
+}
+
+function parseListPage(value: string): number {
+  if (!/^[1-9]\d*$/.test(value)) {
+    return 1;
+  }
+
+  return Number(value);
 }
 
 function customerFromForm(formData: FormData) {

@@ -7,9 +7,15 @@ import type { Customer } from "@/lib/customers";
 
 export function DeleteCustomerDialog({
   customer,
+  listSearch,
+  listPage,
+  soleRowOnPage,
   onClose,
 }: {
   customer: Customer;
+  listSearch: string;
+  listPage: number;
+  soleRowOnPage: boolean;
   onClose: () => void;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -18,7 +24,6 @@ export function DeleteCustomerDialog({
     initialDeleteCustomerState,
   );
   const forThisCustomer = state.customerId === customer.id;
-  const succeeded = forThisCustomer && state.status === "success";
   const formError = forThisCustomer ? state.formError : null;
 
   useEffect(() => {
@@ -55,11 +60,9 @@ export function DeleteCustomerDialog({
         </p>
         <input type="hidden" name="id" value={customer.id} />
         <input type="hidden" name="name" value={customer.name} />
-        {succeeded && state.message ? (
-          <p role="status" className="text-sm text-green-700 dark:text-green-400">
-            {state.message}
-          </p>
-        ) : null}
+        <input type="hidden" name="listSearch" value={listSearch} />
+        <input type="hidden" name="listPage" value={listPage} />
+        <input type="hidden" name="soleRow" value={soleRowOnPage ? "1" : "0"} />
         {formError ? (
           <p role="alert" className="text-sm text-red-700 dark:text-red-400">
             {formError}
@@ -68,7 +71,7 @@ export function DeleteCustomerDialog({
         <div className="flex gap-2">
           <button
             type="submit"
-            disabled={pending || succeeded}
+            disabled={pending}
             className="rounded-full border border-red-700 px-4 py-2 text-sm font-medium text-red-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-400 dark:text-red-400"
           >
             {pending ? "Deleting…" : "Delete"}
@@ -80,7 +83,7 @@ export function DeleteCustomerDialog({
             data-dialog-cancel
             className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700"
           >
-            {succeeded ? "Close" : "Cancel"}
+            Cancel
           </button>
         </div>
       </form>
