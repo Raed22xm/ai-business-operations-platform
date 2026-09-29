@@ -701,6 +701,46 @@ public class CustomersControllerTests : IDisposable
         Assert.Equal(beforeCount, await _database.Customers.CountAsync());
     }
 
+    [Fact]
+    public async Task Export_AppliesDateRangeFilters_IncludesOnlyMatchingRows()
+    {
+        var early = await CreateStored("Early Customer", "early@example.com", null, null);
+        var middle = await CreateStored("Middle Customer", "middle@example.com", null, null);
+        var late = await CreateStored("Late Customer", "late@example.com", null, null);
+
+        await SetCustomerCreatedAt(early.Id, new DateTime(2026, 5, 1, 10, 0, 0, DateTimeKind.Utc));
+        await SetCustomerCreatedAt(middle.Id, new DateTime(2026, 5, 15, 12, 0, 0, DateTimeKind.Utc));
+        await SetCustomerCreatedAt(late.Id, new DateTime(2026, 5, 30, 14, 0, 0, DateTimeKind.Utc));
+
+        var result = Assert.IsType<FileContentResult>(
+            await CreateController().Export(
+                fromDate: new DateOnly(2026, 5, 10),
+                toDate: new DateOnly(2026, 5, 20)));
+
+        var text = StripBom(Encoding.UTF8.GetString(result.FileContents));
+        Assert.DoesNotContain("Early Customer", text);
+        Assert.Contains("Middle Customer", text);
+        Assert.DoesNotContain("Late Customer", text);
+    }
+
+    [Fact]
+    public async Task Export_InvalidDateRange_ReturnsBadRequest()
+    {
+        var controller = CreateController();
+        var result = await controller.Export(
+            fromDate: new DateOnly(2026, 5, 20),
+            toDate: new DateOnly(2026, 5, 10));
+
+        AssertValidationProblem(result, "fromDate");
+    }
+
+    private Task SetCustomerCreatedAt(int id, DateTime createdAt)
+    {
+        return _database.Customers
+            .Where(c => c.Id == id)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(c => c.CreatedAt, createdAt));
+    }
+
     private static string StripBom(string text) =>
         text.Length > 0 && text[0] == '\uFEFF' ? text[1..] : text;
 

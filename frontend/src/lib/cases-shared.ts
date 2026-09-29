@@ -17,6 +17,8 @@ export type CaseListFilters = {
   status: CaseStatus | null;
   search: string | null;
   archive: CaseArchiveFilter | null;
+  fromDate?: string | null;
+  toDate?: string | null;
   page: number | null;
 };
 
@@ -26,6 +28,8 @@ export function casesPageHref(
   search: string | null = null,
   page: number | null = null,
   archive: CaseArchiveFilter | null = null,
+  fromDate: string | null = null,
+  toDate: string | null = null,
 ): string {
   const params = new URLSearchParams();
   if (customerId !== null) {
@@ -40,6 +44,14 @@ export function casesPageHref(
   }
   if (archive && archive !== "active") {
     params.set("archive", archive);
+  }
+  const from = fromDate?.trim() ?? "";
+  if (from !== "") {
+    params.set("fromDate", from);
+  }
+  const to = toDate?.trim() ?? "";
+  if (to !== "") {
+    params.set("toDate", to);
   }
   if (page !== null && page > 1) {
     params.set("page", String(page));
@@ -54,6 +66,8 @@ export function casesExportHref(
   status: CaseStatus | null,
   search: string | null = null,
   archive: CaseArchiveFilter | null = null,
+  fromDate: string | null = null,
+  toDate: string | null = null,
 ): string {
   const params = new URLSearchParams();
   if (customerId !== null) {
@@ -68,6 +82,14 @@ export function casesExportHref(
   }
   if (archive && archive !== "active") {
     params.set("archive", archive);
+  }
+  const from = fromDate?.trim() ?? "";
+  if (from !== "") {
+    params.set("fromDate", from);
+  }
+  const to = toDate?.trim() ?? "";
+  if (to !== "") {
+    params.set("toDate", to);
   }
 
   const query = params.toString();
@@ -88,6 +110,14 @@ export function caseDetailsHref(id: number, filters?: Partial<CaseListFilters>):
   }
   if (filters?.archive && filters.archive !== "active") {
     params.set("archive", filters.archive);
+  }
+  const from = filters?.fromDate?.trim() ?? "";
+  if (from !== "") {
+    params.set("fromDate", from);
+  }
+  const to = filters?.toDate?.trim() ?? "";
+  if (to !== "") {
+    params.set("toDate", to);
   }
   if (filters?.page != null && filters.page > 1) {
     params.set("page", String(filters.page));

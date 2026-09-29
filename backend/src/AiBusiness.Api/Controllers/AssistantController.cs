@@ -11,10 +11,31 @@ namespace AiBusiness.Api.Controllers;
 public sealed class AssistantController : ControllerBase
 {
     private readonly CaseAssistantService _assistant;
+    private readonly CaseEscalationService _escalation;
 
-    public AssistantController(CaseAssistantService assistant)
+    public AssistantController(CaseAssistantService assistant, CaseEscalationService? escalation = null)
     {
         _assistant = assistant;
+        _escalation = escalation!;
+    }
+
+    [HttpGet("cases/{caseId:int}/escalation-check")]
+    [DisableRateLimiting]
+    [ProducesResponseType(typeof(CaseEscalationResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> CheckEscalation(int caseId, CancellationToken cancellationToken)
+    {
+        var result = await _escalation.CheckAsync(caseId, cancellationToken);
+        return result.Status switch
+        {
+            CaseEscalationResult.StatusKind.NotFound => NotFound(new { detail = "Case not found." }),
+            CaseEscalationResult.StatusKind.Archived => Problem(
+                detail: "This case is archived and cannot be evaluated for escalation.",
+                statusCode: StatusCodes.Status409Conflict,
+                title: "Case archived"),
+            _ => Ok(result.Data),
+        };
     }
 
     [HttpPost("cases/{caseId:int}/summary")]

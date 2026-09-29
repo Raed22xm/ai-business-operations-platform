@@ -35,9 +35,8 @@ test("dashboard selection, search, real tasks, responsive layout and navigation"
     await expect(page.getByRole("button", { name: "Draft response", exact: true })).toBeEnabled();
     await expect(page.getByRole("button", { name: "Generate summary", exact: true })).toBeEnabled();
     await expect(page.getByRole("button", { name: /Schedule follow-up/i })).toBeEnabled();
-    await expect(page.getByRole("button", { name: /Escalation check/i })).toBeDisabled();
-    await expect(page.getByText("Coming soon").first()).toBeVisible();
-    await expect(page.getByText("Generate a summary or draft from this case’s saved data")).toBeVisible();
+    await expect(page.getByRole("button", { name: /Escalation check/i })).toBeEnabled();
+    await expect(page.getByText(/Generate a summary or draft/i)).toBeVisible();
     await expect(dashboard.getByRole("link", { name: "Select Sarah Chen" })).toHaveAttribute("aria-current", "true");
     await page.screenshot({ path: path.join(__dirname, "../../docs/screenshots/dashboard-reference-desktop.png"), fullPage: true });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();

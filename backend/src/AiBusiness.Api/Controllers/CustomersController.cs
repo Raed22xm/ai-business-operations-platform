@@ -48,8 +48,16 @@ public class CustomersController : ControllerBase
     public async Task<IActionResult> GetAll(
         [FromQuery] string? search = null,
         [FromQuery] int? page = null,
-        [FromQuery] int? pageSize = null)
+        [FromQuery] int? pageSize = null,
+        [FromQuery] DateOnly? fromDate = null,
+        [FromQuery] DateOnly? toDate = null)
     {
+        if (fromDate.HasValue && toDate.HasValue && fromDate.Value > toDate.Value)
+        {
+            ModelState.AddModelError(nameof(fromDate), "fromDate cannot be after toDate.");
+            return ValidationProblem(ModelState);
+        }
+
         if (!Pagination.TryResolve(
                 page,
                 pageSize,
@@ -61,7 +69,7 @@ public class CustomersController : ControllerBase
             return ValidationProblem(ModelState);
         }
 
-        var query = BuildListQuery(search);
+        var query = BuildListQuery(search, fromDate, toDate);
 
         if (!paginate)
         {
@@ -74,17 +82,27 @@ public class CustomersController : ControllerBase
     [HttpGet("export")]
     [EndpointSummary("Export customers CSV")]
     [EndpointDescription(
-        "Exports all customers matching the same optional `search` filter as the list endpoint, "
+        "Exports all customers matching the optional `search` and date-range (`fromDate`, `toDate`) filters, "
             + "ordered by `id`. Not limited to the current page. "
             + "Returns UTF-8 CSV (with BOM). Rejects exports larger than CsvExport:MaxRows. "
             + "Does not change any records.")]
     [Produces("text/csv")]
     [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> Export([FromQuery] string? search = null)
+    public async Task<IActionResult> Export(
+        [FromQuery] string? search = null,
+        [FromQuery] DateOnly? fromDate = null,
+        [FromQuery] DateOnly? toDate = null)
     {
+        if (fromDate.HasValue && toDate.HasValue && fromDate.Value > toDate.Value)
+        {
+            ModelState.AddModelError(nameof(fromDate), "fromDate cannot be after toDate.");
+            return ValidationProblem(ModelState);
+        }
+
         var maxRows = _csvExport.MaxRows;
-        var query = BuildListQuery(search);
+        var query = BuildListQuery(search, fromDate, toDate);
         var matched = await query.CountAsync();
         if (matched > maxRows)
         {
@@ -217,7 +235,10 @@ public class CustomersController : ControllerBase
         return NoContent();
     }
 
-    private IQueryable<Customer> BuildListQuery(string? search)
+    private IQueryable<Customer> BuildListQuery(
+        string? search,
+        DateOnly? fromDate = null,
+        DateOnly? toDate = null)
     {
         var query = _database.Customers.AsNoTracking().AsQueryable();
         var term = search?.Trim();
@@ -228,6 +249,18 @@ public class CustomersController : ControllerBase
                 customer.Name.ToLower().Contains(needle)
                 || customer.Email.ToLower().Contains(needle)
                 || (customer.Company != null && customer.Company.ToLower().Contains(needle)));
+        }
+
+        if (fromDate is DateOnly start)
+        {
+            var startUtc = start.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+            query = query.Where(customer => customer.CreatedAt >= startUtc);
+        }
+
+        if (toDate is DateOnly end)
+        {
+            var nextDayUtc = end.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+            query = query.Where(customer => customer.CreatedAt < nextDayUtc);
         }
 
         return query.OrderBy(customer => customer.Id);

@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { formatTaskDueDate, taskPriorityLabel, taskStatusLabel } from "@/lib/tasks-shared";
+import { formatTaskDueDate, taskPriorityLabel } from "@/lib/tasks-shared";
 import type { TaskSearchItem } from "@/lib/tasks-workspace-shared";
+import { TaskStatusSelector } from "@/app/tasks/task-status-selector";
 
 export function TaskTable({
   tasks,
@@ -77,8 +78,12 @@ export function TaskTable({
                   {task.caseTitle}
                 </Link>
               </td>
-              <td className="px-3 py-3 text-zinc-700 dark:text-zinc-300">
-                {taskStatusLabel(task.status)}
+              <td className="px-3 py-3">
+                <TaskStatusSelector
+                  taskId={task.id}
+                  initialStatus={task.status}
+                  taskTitle={task.title}
+                />
               </td>
               <td className="px-3 py-3">
                 <span className="task-priority-label" data-priority={task.priority}>

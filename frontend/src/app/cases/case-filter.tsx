@@ -33,16 +33,22 @@ export function CaseFilter({
   selectedCustomerId,
   selectedStatus,
   selectedArchive,
+  selectedFromDate = "",
+  selectedToDate = "",
   search,
 }: {
   customers: FilterCustomer[];
   selectedCustomerId: number | null;
   selectedStatus: CaseStatus | null;
   selectedArchive: CaseArchiveFilter;
+  selectedFromDate?: string;
+  selectedToDate?: string;
   search: string;
 }) {
   const router = useRouter();
   const [searchValue, setSearchValue] = useState(search);
+  const [fromDate, setFromDate] = useState(selectedFromDate);
+  const [toDate, setToDate] = useState(selectedToDate);
 
   return (
     <div className="flex flex-col gap-3">
@@ -57,6 +63,8 @@ export function CaseFilter({
               searchValue.trim() || null,
               null,
               selectedArchive,
+              fromDate.trim() || null,
+              toDate.trim() || null,
             ),
           );
         }}
@@ -80,6 +88,8 @@ export function CaseFilter({
                     search || null,
                     null,
                     selectedArchive,
+                    fromDate.trim() || null,
+                    toDate.trim() || null,
                   ),
                 );
               }}
@@ -111,6 +121,8 @@ export function CaseFilter({
                     search || null,
                     null,
                     selectedArchive,
+                    fromDate.trim() || null,
+                    toDate.trim() || null,
                   ),
                 );
               }}
@@ -140,6 +152,8 @@ export function CaseFilter({
                     search || null,
                     null,
                     archive,
+                    fromDate.trim() || null,
+                    toDate.trim() || null,
                   ),
                 );
               }}
@@ -168,6 +182,32 @@ export function CaseFilter({
               className="w-full rounded-lg border border-zinc-300 bg-transparent px-3 py-2 text-sm outline-none focus:border-zinc-500 dark:border-zinc-700"
             />
           </div>
+          <div className="flex flex-col gap-1 sm:w-40">
+            <label htmlFor="case-from-date" className="text-sm font-medium">
+              From date
+            </label>
+            <input
+              id="case-from-date"
+              name="fromDate"
+              type="date"
+              value={fromDate}
+              onChange={(event) => setFromDate(event.target.value)}
+              className="w-full rounded-lg border border-zinc-300 bg-transparent px-3 py-2 text-sm outline-none focus:border-zinc-500 dark:border-zinc-700"
+            />
+          </div>
+          <div className="flex flex-col gap-1 sm:w-40">
+            <label htmlFor="case-to-date" className="text-sm font-medium">
+              To date
+            </label>
+            <input
+              id="case-to-date"
+              name="toDate"
+              type="date"
+              value={toDate}
+              onChange={(event) => setToDate(event.target.value)}
+              className="w-full rounded-lg border border-zinc-300 bg-transparent px-3 py-2 text-sm outline-none focus:border-zinc-500 dark:border-zinc-700"
+            />
+          </div>
           <div className="flex gap-2">
             <button
               type="submit"
@@ -179,6 +219,8 @@ export function CaseFilter({
               type="button"
               onClick={() => {
                 setSearchValue("");
+                setFromDate("");
+                setToDate("");
                 router.push(
                   casesPageHref(selectedCustomerId, selectedStatus, null, null, selectedArchive),
                 );
@@ -196,6 +238,8 @@ export function CaseFilter({
           selectedStatus,
           search || null,
           selectedArchive,
+          selectedFromDate || null,
+          selectedToDate || null,
         )}
         resourceLabel="Cases"
       />

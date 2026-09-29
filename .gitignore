@@ -67,3 +67,10 @@ frontend/.env*.local
 *.dump.meta.json
 backups/
 **/backups/
+
+# Playwright & test runtime output
+.playwright-mcp/
+test-results/
+playwright-report/
+**/test-results/
+**/playwright-report/

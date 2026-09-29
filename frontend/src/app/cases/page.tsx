@@ -29,6 +29,8 @@ type CasesPageProps = {
     status?: string | string[];
     search?: string | string[];
     archive?: string | string[];
+    fromDate?: string | string[];
+    toDate?: string | string[];
     page?: string | string[];
     notice?: string | string[];
   }>;
@@ -41,6 +43,8 @@ export default async function CasesPage({ searchParams }: CasesPageProps) {
   const selectedStatus = selectedStatusValue(params.status);
   const selectedArchive = selectedArchiveValue(params.archive);
   const search = searchValue(params.search);
+  const fromDate = dateValue(params.fromDate);
+  const toDate = dateValue(params.toDate);
   const page = parsePageParam(params.page);
   const notice = noticeValue(params.notice);
   const result = await getCasesPage({
@@ -48,6 +52,8 @@ export default async function CasesPage({ searchParams }: CasesPageProps) {
     status: selectedStatus ?? undefined,
     search: search || undefined,
     archive: selectedArchive,
+    fromDate: fromDate || undefined,
+    toDate: toDate || undefined,
     page,
     pageSize: CASES_PAGE_SIZE,
   });
@@ -59,6 +65,8 @@ export default async function CasesPage({ searchParams }: CasesPageProps) {
       search || null,
       lastPage === 1 ? null : lastPage,
       selectedArchive,
+      fromDate || null,
+      toDate || null,
     );
     redirect(notice ? withNotice(href, notice) : href);
   }
@@ -82,11 +90,13 @@ export default async function CasesPage({ searchParams }: CasesPageProps) {
         <div className="crm-create-column">{customers.length === 0 ? <NoCustomers /> : <CaseForm customers={namedCustomers} />}</div>
         <section className="crm-records-panel" aria-label="Cases list">
           <CaseFilter
-            key={`${selectedCustomerId ?? ""}-${selectedStatus ?? ""}-${selectedArchive}-${search}`}
+            key={`${selectedCustomerId ?? ""}-${selectedStatus ?? ""}-${selectedArchive}-${search}-${fromDate}-${toDate}`}
             customers={namedCustomers}
             selectedCustomerId={selectedCustomerId}
             selectedStatus={selectedStatus}
             selectedArchive={selectedArchive}
+            selectedFromDate={fromDate}
+            selectedToDate={toDate}
             search={search}
           />
           <CaseTable
@@ -112,6 +122,8 @@ export default async function CasesPage({ searchParams }: CasesPageProps) {
               search || null,
               page <= 2 ? null : page - 1,
               selectedArchive,
+              fromDate || null,
+              toDate || null,
             )}
             nextHref={casesPageHref(
               selectedCustomerId,
@@ -119,6 +131,8 @@ export default async function CasesPage({ searchParams }: CasesPageProps) {
               search || null,
               page + 1,
               selectedArchive,
+              fromDate || null,
+              toDate || null,
             )}
           />
         </section>
@@ -172,4 +186,10 @@ function selectedArchiveValue(value: string | string[] | undefined): CaseArchive
 function searchValue(value: string | string[] | undefined): string {
   const raw = Array.isArray(value) ? value[0] : value;
   return raw?.trim() ?? "";
+}
+
+function dateValue(value: string | string[] | undefined): string {
+  const raw = Array.isArray(value) ? value[0] : value;
+  const trimmed = raw?.trim() ?? "";
+  return /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : "";
 }

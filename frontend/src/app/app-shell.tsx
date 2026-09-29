@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Aperture, ArrowUpRight, BarChart3, BriefcaseBusiness, ChevronDown, CircleHelp, ClipboardList, Cpu, Inbox, LayoutDashboard, Menu, Search, Settings2, Users, X } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { logoutAction } from "@/app/login/actions";
+import { HeaderAlerts } from "@/app/header-alerts";
 
 type NavKey = "overview" | "inquiry" | "customers" | "cases" | "tasks";
 const links = [
@@ -27,6 +28,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           ? "tasks"
           : "overview";
   const [menuOpen, setMenuOpen] = useState(false);
+  const [urgentCounts, setUrgentCounts] = useState<{ overdue: number; dueToday: number } | null>(null);
   const menuRef = useRef<HTMLDialogElement>(null);
   const menuButton = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -51,7 +53,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <a className="skip-link" href="#workspace-content">Skip to content</a>
       <aside className="operations-sidebar" aria-label="Application">
         <Brand />
-        <SiteNav current={current} className="workspace-nav" />
+        <SiteNav current={current} className="workspace-nav" overdueCount={urgentCounts?.overdue} />
         <SidebarLinks />
         <div className="sidebar-bottom"><span className="connection-dot" />Local workspace<span className="sidebar-version">v1.0</span></div>
       </aside>
@@ -64,6 +66,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <button type="submit" aria-label="Submit customer search"><ArrowUpRight size={15} /></button>
           </form>
           <div className="topbar-right">
+            <HeaderAlerts onCountsLoaded={setUrgentCounts} />
             <Link href="/cases" className="icon-button topbar-cases" aria-label="View cases"><BriefcaseBusiness size={18} /></Link>
             <span className="topbar-divider" />
             <details className="workspace-account">
@@ -82,7 +85,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </div>
       <dialog ref={menuRef} className="mobile-navigation" onCancel={() => setMenuOpen(false)} onClose={() => setMenuOpen(false)}>
         <div className="mobile-navigation-heading"><Brand /><button className="icon-button" aria-label="Close navigation" onClick={closeMenu}><X size={20} /></button></div>
-        <SiteNav current={current} className="workspace-nav" onNavigate={closeMenu} />
+        <SiteNav current={current} className="workspace-nav" onNavigate={closeMenu} overdueCount={urgentCounts?.overdue} />
         <SidebarLinks onNavigate={closeMenu} />
       </dialog>
     </div>
@@ -93,8 +96,38 @@ function Brand() {
   return <Link href="/" className="workspace-brand"><Aperture size={29} strokeWidth={2.3} aria-hidden="true" /><span>Operations Hub</span></Link>;
 }
 
-export function SiteNav({ current, className, onNavigate }: { current: NavKey; className?: string; onNavigate?: () => void }) {
-  return <nav aria-label="Sections" className={className ?? "workspace-inline-nav"}>{links.map(({ key, href, label, icon: Icon }) => <Link key={key} href={href} onClick={onNavigate} aria-current={current === key ? "page" : undefined} className={`workspace-nav-link${current === key ? " is-active" : ""}`}><Icon size={19} strokeWidth={1.5} aria-hidden="true" /><span>{label}</span></Link>)}</nav>;
+export function SiteNav({
+  current,
+  className,
+  onNavigate,
+  overdueCount,
+}: {
+  current: NavKey;
+  className?: string;
+  onNavigate?: () => void;
+  overdueCount?: number;
+}) {
+  return (
+    <nav aria-label="Sections" className={className ?? "workspace-inline-nav"}>
+      {links.map(({ key, href, label, icon: Icon }) => (
+        <Link
+          key={key}
+          href={href}
+          onClick={onNavigate}
+          aria-current={current === key ? "page" : undefined}
+          className={`workspace-nav-link${current === key ? " is-active" : ""}`}
+        >
+          <Icon size={19} strokeWidth={1.5} aria-hidden="true" />
+          <span>{label}</span>
+          {key === "tasks" && typeof overdueCount === "number" && overdueCount > 0 ? (
+            <span className="nav-alert-badge" title={`${overdueCount} overdue`}>
+              {overdueCount}
+            </span>
+          ) : null}
+        </Link>
+      ))}
+    </nav>
+  );
 }
 
 function SidebarLinks({ onNavigate }: { onNavigate?: () => void }) {

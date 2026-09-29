@@ -10,6 +10,7 @@ import type { Customer } from "@/lib/customers-shared";
 export type { Customer } from "@/lib/customers-shared";
 export {
   customerDetailsHref,
+  customersExportHref,
   customersPageHref,
   formatCustomerCreatedAt,
 } from "@/lib/customers-shared";
@@ -87,6 +88,8 @@ export async function getCustomers(options?: {
 
 export async function getCustomersPage(options?: {
   search?: string;
+  fromDate?: string;
+  toDate?: string;
   page?: number;
   pageSize?: number;
 }): Promise<PagedCustomers> {
@@ -94,6 +97,14 @@ export async function getCustomersPage(options?: {
   const search = options?.search?.trim();
   if (search) {
     url.searchParams.set("search", search);
+  }
+  const fromDate = options?.fromDate?.trim();
+  if (fromDate) {
+    url.searchParams.set("fromDate", fromDate);
+  }
+  const toDate = options?.toDate?.trim();
+  if (toDate) {
+    url.searchParams.set("toDate", toDate);
   }
   url.searchParams.set("page", String(options?.page ?? 1));
   url.searchParams.set("pageSize", String(options?.pageSize ?? CUSTOMERS_PAGE_SIZE));

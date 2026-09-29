@@ -28,15 +28,20 @@ public class CasesController : ControllerBase
     private readonly AppDbContext _database;
     private readonly CaseActivityWriter _activity;
     private readonly CsvExportService _csvExport;
+    private readonly CaseEscalationService _escalation;
 
     public CasesController(
         AppDbContext database,
         CaseActivityWriter activity,
-        CsvExportService csvExport)
+        CsvExportService csvExport,
+        CaseEscalationService? escalation = null)
     {
         _database = database;
         _activity = activity;
         _csvExport = csvExport;
+        _escalation = escalation ?? new CaseEscalationService(
+            database,
+            new BusinessClock(Microsoft.Extensions.Options.Options.Create(new Options.BusinessTimezoneOptions())));
     }
 
     [HttpGet]
@@ -57,7 +62,9 @@ public class CasesController : ControllerBase
         [FromQuery] string? search = null,
         [FromQuery] string? archive = null,
         [FromQuery] int? page = null,
-        [FromQuery] int? pageSize = null)
+        [FromQuery] int? pageSize = null,
+        [FromQuery] DateOnly? fromDate = null,
+        [FromQuery] DateOnly? toDate = null)
     {
         if (!Pagination.TryResolve(
                 page,
@@ -70,7 +77,7 @@ public class CasesController : ControllerBase
             return ValidationProblem(ModelState);
         }
 
-        if (!TryBuildListQuery(customerId, status, search, archive, out var query, out var errorResult))
+        if (!TryBuildListQuery(customerId, status, search, archive, fromDate, toDate, out var query, out var errorResult))
         {
             return errorResult!;
         }
@@ -86,7 +93,7 @@ public class CasesController : ControllerBase
     [HttpGet("export")]
     [EndpointSummary("Export cases CSV")]
     [EndpointDescription(
-        "Exports all cases matching the same optional `customerId`, `status`, `search`, and `archive` filters as the list endpoint, "
+        "Exports all cases matching the optional `customerId`, `status`, `search`, `archive`, and date-range (`fromDate`, `toDate`) filters, "
             + "ordered newest `createdAt` first, then highest `id`. Not limited to the current page. "
             + "Includes customer id/name and Archived At (UTC). Returns UTF-8 CSV (with BOM). "
             + "Rejects exports larger than CsvExport:MaxRows. Does not change any records.")]
@@ -98,9 +105,11 @@ public class CasesController : ControllerBase
         [FromQuery] int? customerId = null,
         [FromQuery] string? status = null,
         [FromQuery] string? search = null,
-        [FromQuery] string? archive = null)
+        [FromQuery] string? archive = null,
+        [FromQuery] DateOnly? fromDate = null,
+        [FromQuery] DateOnly? toDate = null)
     {
-        if (!TryBuildListQuery(customerId, status, search, archive, out var query, out var errorResult))
+        if (!TryBuildListQuery(customerId, status, search, archive, fromDate, toDate, out var query, out var errorResult))
         {
             return errorResult!;
         }
@@ -498,15 +507,47 @@ public class CasesController : ControllerBase
         return Ok(existing);
     }
 
+    [HttpGet("{id:int}/escalation-check")]
+    [EndpointSummary("Check case escalation flags")]
+    [EndpointDescription(
+        "Runs deterministic rule-based checks for overdue tasks, high-priority unfinished tasks, "
+            + "and open/in-progress cases with no active tasks. Does not modify data or send notifications.")]
+    [ProducesResponseType(typeof(CaseEscalationResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> CheckEscalation(int id, CancellationToken cancellationToken)
+    {
+        var result = await _escalation.CheckAsync(id, cancellationToken);
+        return result.Status switch
+        {
+            CaseEscalationResult.StatusKind.NotFound => NotFound(new { detail = "Case not found." }),
+            CaseEscalationResult.StatusKind.Archived => Problem(
+                detail: "This case is archived and cannot be evaluated for escalation.",
+                statusCode: StatusCodes.Status409Conflict,
+                title: "Case archived"),
+            _ => Ok(result.Data),
+        };
+    }
+
     private bool TryBuildListQuery(
         int? customerId,
         string? status,
         string? search,
         string? archive,
+        DateOnly? fromDate,
+        DateOnly? toDate,
         out IQueryable<Case> query,
         out IActionResult? errorResult)
     {
         errorResult = null;
+        if (fromDate.HasValue && toDate.HasValue && fromDate.Value > toDate.Value)
+        {
+            ModelState.AddModelError(nameof(fromDate), "fromDate cannot be after toDate.");
+            query = _database.Cases;
+            errorResult = ValidationProblem(ModelState);
+            return false;
+        }
+
         CaseStatus? statusFilter = null;
         if (!string.IsNullOrWhiteSpace(status))
         {
@@ -559,6 +600,18 @@ public class CasesController : ControllerBase
             query = query.Where(work =>
                 work.Title.ToLower().Contains(needle)
                 || (work.Description != null && work.Description.ToLower().Contains(needle)));
+        }
+
+        if (fromDate is DateOnly start)
+        {
+            var startUtc = start.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+            query = query.Where(work => work.CreatedAt >= startUtc);
+        }
+
+        if (toDate is DateOnly end)
+        {
+            var nextDayUtc = end.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+            query = query.Where(work => work.CreatedAt < nextDayUtc);
         }
 
         query = query

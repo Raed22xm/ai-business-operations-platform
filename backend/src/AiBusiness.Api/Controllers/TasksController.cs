@@ -397,6 +397,63 @@ public class TasksController : ControllerBase
         return Ok(existing);
     }
 
+    [HttpPatch("{id:int}/status")]
+    [EndpointSummary("Update task status")]
+    [EndpointDescription(
+        "Updates only the status of an existing task (Todo, InProgress, or Done). "
+            + "Leaves title, description, dueDate, and priority unchanged. "
+            + "Records TaskCompleted when status transitions to Done, or TaskUpdated otherwise.")]
+    [ProducesResponseType(typeof(CaseTask), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> UpdateStatus(int id, [FromBody] TaskStatusUpdate changes)
+    {
+        if (string.IsNullOrWhiteSpace(changes?.Status) || !TryReadStatus(changes.Status.Trim(), out var status))
+        {
+            ModelState.AddModelError(nameof(changes.Status), "Status must be Todo, InProgress, or Done.");
+            return ValidationProblem(ModelState);
+        }
+
+        var existing = await _database.CaseTasks.FindAsync(id);
+        if (existing is null)
+        {
+            return NotFound();
+        }
+
+        if (await IsCaseArchived(existing.CaseId))
+        {
+            return ArchivedCaseConflict();
+        }
+
+        if (existing.Status != status)
+        {
+            var becameDone = existing.Status != CaseTaskStatus.Done && status == CaseTaskStatus.Done;
+            existing.Status = status;
+
+            if (becameDone)
+            {
+                _activity.Record(
+                    existing.CaseId,
+                    CaseActivityEventType.TaskCompleted,
+                    "Task marked Done",
+                    CurrentActorName());
+            }
+            else
+            {
+                _activity.Record(
+                    existing.CaseId,
+                    CaseActivityEventType.TaskUpdated,
+                    $"Task status changed to {status}",
+                    CurrentActorName());
+            }
+
+            await _database.SaveChangesAsync();
+        }
+
+        return Ok(existing);
+    }
+
     [HttpDelete("{id:int}")]
     [EndpointSummary("Delete task")]
     [EndpointDescription(

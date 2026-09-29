@@ -64,6 +64,7 @@ builder.Services.AddSingleton<IBusinessClock, BusinessClock>();
 builder.Services.AddSingleton<CsvExportService>();
 builder.Services.AddScoped<CaseActivityWriter>();
 builder.Services.AddScoped<CaseAssistantService>();
+builder.Services.AddScoped<CaseEscalationService>();
 builder.Services.AddSingleton<WorkspaceCredentialValidator>();
 builder.Services.AddSingleton<JwtTokenService>();
 

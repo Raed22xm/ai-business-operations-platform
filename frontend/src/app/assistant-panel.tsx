@@ -2,8 +2,17 @@
 
 import Link from "next/link";
 import { useId, useState, useTransition } from "react";
-import { ArrowUpRight, Check, Copy, LockKeyhole, Sparkles } from "lucide-react";
 import {
+  AlertTriangle,
+  ArrowUpRight,
+  Check,
+  CheckCircle2,
+  Copy,
+  LockKeyhole,
+  Sparkles,
+} from "lucide-react";
+import {
+  checkCaseEscalationAction,
   draftCaseResponseAction,
   generateCaseSummaryAction,
 } from "@/app/assistant-actions";
@@ -11,12 +20,13 @@ import { createDraftAction } from "@/app/cases/[id]/draft-actions";
 import { CopyBrief } from "@/app/dashboard-tools";
 import { caseStatusLabel, isCaseArchived, type CustomerCase } from "@/lib/cases-shared";
 import type { Customer } from "@/lib/customers-shared";
+import type { CaseEscalationResult } from "@/lib/escalation-shared";
 import { ScheduleFollowUpForm } from "@/app/schedule-follow-up-form";
 
-type OutputKind = "summary" | "draft";
+type OutputKind = "summary" | "draft" | "escalation";
 
 type PanelOutput = {
-  kind: OutputKind;
+  kind: "summary" | "draft";
   text: string;
   source: "openai" | "mock";
   setupHint: string | null;
@@ -34,6 +44,7 @@ export function AssistantPanel({
     : "Select a customer with a case to see its brief here.";
 
   const [output, setOutput] = useState<PanelOutput | null>(null);
+  const [escalationData, setEscalationData] = useState<CaseEscalationResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastAction, setLastAction] = useState<OutputKind | null>(null);
   const [pending, startTransition] = useTransition();
@@ -43,6 +54,17 @@ export function AssistantPanel({
   const caseId = work?.id ?? null;
   const isArchived = work ? isCaseArchived(work) : false;
   const statusId = useId();
+
+  // Clear results whenever the selected case changes
+  const [prevCaseId, setPrevCaseId] = useState<number | null>(work?.id ?? null);
+  if ((work?.id ?? null) !== prevCaseId) {
+    setPrevCaseId(work?.id ?? null);
+    setOutput(null);
+    setEscalationData(null);
+    setError(null);
+    setLastAction(null);
+    setIsSchedulingFollowUp(false);
+  }
 
   function run(kind: OutputKind) {
     if (!caseId || pending) {
@@ -54,6 +76,23 @@ export function AssistantPanel({
     setCopyState("idle");
     setSaveDraftState("idle");
 
+    if (kind === "escalation") {
+      setOutput(null);
+      startTransition(async () => {
+        const result = await checkCaseEscalationAction(caseId);
+        if (result.status === "error") {
+          setEscalationData(null);
+          setError(result.message);
+          return;
+        }
+
+        setError(null);
+        setEscalationData(result.data);
+      });
+      return;
+    }
+
+    setEscalationData(null);
     startTransition(async () => {
       const result =
         kind === "summary"
@@ -76,7 +115,8 @@ export function AssistantPanel({
     });
   }
 
-  const canGenerate = Boolean(caseId) && !pending;
+  const canGenerate = Boolean(caseId) && !isArchived && !pending;
+  const canCheck = Boolean(caseId) && !isArchived && !pending;
   const canSchedule = Boolean(work) && !isArchived;
 
   return (
@@ -131,23 +171,63 @@ export function AssistantPanel({
           </button>
           <button
             type="button"
-            className="is-ready"
+            className={canGenerate ? "is-ready" : undefined}
             disabled={!canGenerate}
             onClick={() => run("draft")}
+            title={
+              !work
+                ? "Select a case to draft a response"
+                : isArchived
+                  ? "Cannot draft responses for archived cases"
+                  : "Draft a response for this case"
+            }
           >
             Draft response
+            {!work ? (
+              <span className="action-soon">Select case</span>
+            ) : isArchived ? (
+              <span className="action-soon">Archived</span>
+            ) : null}
           </button>
           <button
             type="button"
-            className="is-ready"
+            className={canGenerate ? "is-ready" : undefined}
             disabled={!canGenerate}
             onClick={() => run("summary")}
+            title={
+              !work
+                ? "Select a case to generate a summary"
+                : isArchived
+                  ? "Cannot generate summaries for archived cases"
+                  : "Generate a summary of this case"
+            }
           >
             Generate summary
+            {!work ? (
+              <span className="action-soon">Select case</span>
+            ) : isArchived ? (
+              <span className="action-soon">Archived</span>
+            ) : null}
           </button>
-          <button type="button" disabled title="Coming soon">
+          <button
+            type="button"
+            className={canCheck ? "is-ready" : undefined}
+            disabled={!canCheck}
+            onClick={() => run("escalation")}
+            title={
+              !work
+                ? "Select a case to check for escalation flags"
+                : isArchived
+                  ? "Archived cases cannot be evaluated for escalation"
+                  : "Check for overdue tasks, high-priority work, and open cases needing tasks"
+            }
+          >
             Escalation check
-            <span className="action-soon">Coming soon</span>
+            {!work ? (
+              <span className="action-soon">Select case</span>
+            ) : isArchived ? (
+              <span className="action-soon">Archived</span>
+            ) : null}
           </button>
         </div>
 
@@ -155,7 +235,9 @@ export function AssistantPanel({
           {pending
             ? lastAction === "draft"
               ? "Drafting a customer response…"
-              : "Generating a case summary…"
+              : lastAction === "summary"
+                ? "Generating a case summary…"
+                : "Checking case for attention flags…"
             : error
               ? error
               : work
@@ -163,8 +245,8 @@ export function AssistantPanel({
                   ? "This case is archived. Restore it to schedule follow-ups or generate updates."
                   : isSchedulingFollowUp
                     ? "Schedule an internal follow-up task. It will appear on the case timeline and due date views."
-                    : "Generate a summary or draft from this case’s saved data. Review before sharing."
-                : "Select a case to enable follow-ups, summaries, and response drafts."}
+                    : "Generate a summary or draft, or run an escalation check on this case."
+                : "Select a case to enable follow-ups, summaries, response drafts, and escalation checks."}
         </p>
 
         {isSchedulingFollowUp && work && !isArchived ? (
@@ -182,11 +264,88 @@ export function AssistantPanel({
             <button
               type="button"
               className="workspace-button small-button"
-              disabled={!canGenerate || !lastAction}
+              disabled={pending || !lastAction}
               onClick={() => lastAction && run(lastAction)}
             >
               Retry
             </button>
+          </div>
+        ) : null}
+
+        {escalationData ? (
+          <div className="escalation-output">
+            <div className="detail-label">
+              <span>Escalation check</span>
+              <span
+                className={
+                  escalationData.flags.length > 0
+                    ? "escalation-badge is-attention"
+                    : "escalation-badge is-clean"
+                }
+              >
+                {escalationData.flags.length > 0 ? "Needs review" : "Deterministic rules"}
+              </span>
+            </div>
+
+            {escalationData.flags.length === 0 ? (
+              <div
+                className="escalation-clean-state"
+                role="status"
+                aria-label="No attention flags found"
+              >
+                <CheckCircle2 size={18} className="escalation-clean-icon" aria-hidden="true" />
+                <div className="escalation-clean-content">
+                  <strong>No attention flags found.</strong>
+                  <p>No overdue tasks, high-priority work, or unstaffed case conditions detected.</p>
+                </div>
+              </div>
+            ) : (
+              <div className="escalation-card" role="status" aria-label="Escalation review items">
+                <div className="escalation-summary-bar">
+                  <AlertTriangle size={15} className="escalation-alert-icon" aria-hidden="true" />
+                  <span className="escalation-summary-text">{escalationData.summaryMessage}</span>
+                </div>
+                <ul className="escalation-list" aria-label="Needs review items">
+                  {escalationData.flags.map((flag, index) => (
+                    <li
+                      key={`${flag.rule}-${flag.taskId ?? index}`}
+                      className="escalation-flag-item"
+                    >
+                      <div className="escalation-flag-header">
+                        <span className="escalation-tag">Needs review</span>
+                        <span className="escalation-rule-tag">
+                          {flag.rule === "OverdueTask"
+                            ? "Overdue task"
+                            : flag.rule === "HighPriorityTask"
+                              ? "High priority"
+                              : "No unfinished tasks"}
+                        </span>
+                      </div>
+                      <p className="escalation-flag-reason">{flag.reason}</p>
+                      {flag.taskId ? (
+                        <Link
+                          href={`/cases/${caseId}#task-${flag.taskId}`}
+                          className="escalation-task-link"
+                        >
+                          <span>
+                            View task {flag.taskTitle ? `“${flag.taskTitle}”` : `#${flag.taskId}`}
+                          </span>
+                          <ArrowUpRight size={13} aria-hidden="true" />
+                        </Link>
+                      ) : (
+                        <Link
+                          href={`/cases/${caseId}#case-tasks-heading`}
+                          className="escalation-task-link"
+                        >
+                          <span>Open case tasks</span>
+                          <ArrowUpRight size={13} aria-hidden="true" />
+                        </Link>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         ) : null}
 

@@ -78,7 +78,10 @@ export default async function CaseDetailsPage({
     listFilters.page,
     listFilters.archive,
   );
-  const hasIncompleteTasks = await loadHasIncompleteTasks(work.id);
+  const hasIncompleteTasks =
+    work.status === "Closed" && !isCaseArchived(work)
+      ? await loadHasIncompleteTasks(work.id)
+      : false;
 
   return (
     <main className="crm-page">

@@ -1,7 +1,12 @@
 import "server-only";
 import { apiFetch } from "@/lib/api";
 import type { DeleteTaskState, TaskField, TaskFormState } from "@/lib/task-form-state";
-import type { CaseTask, TaskPriority, TaskStatus } from "@/lib/tasks-shared";
+import {
+  taskStatusLabel,
+  type CaseTask,
+  type TaskPriority,
+  type TaskStatus,
+} from "@/lib/tasks-shared";
 
 export type { CaseTask, TaskPriority, TaskStatus } from "@/lib/tasks-shared";
 export {
@@ -173,6 +178,54 @@ export async function updateTask(id: number, input: TaskChanges): Promise<TaskFo
   }
 
   return taskError(`Could not save the task (${response.status}).`, id);
+}
+
+export async function updateTaskStatus(id: number, status: TaskStatus): Promise<TaskFormState> {
+  let response: Response;
+
+  try {
+    response = await apiFetch(`${tasksUrl()}/${id}/status`, {
+      method: "PATCH",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ status }),
+      cache: "no-store",
+    });
+  } catch {
+    return taskError("Could not update task status. Check that the API is running.", id);
+  }
+
+  if (response.status === 200) {
+    const body: unknown = await response.json();
+    if (!isCaseTask(body)) {
+      return taskError("The API returned an unexpected task.", id);
+    }
+
+    return {
+      status: "success",
+      message: `${body.title} status updated to ${taskStatusLabel(body.status)}.`,
+      formError: null,
+      fieldErrors: {},
+      revision: 0,
+      taskId: body.id,
+    };
+  }
+
+  if (response.status === 400) {
+    return taskError("Invalid task status.", id);
+  }
+
+  if (response.status === 404) {
+    return taskError("That task was not found.", id);
+  }
+
+  if (response.status === 409) {
+    return taskError("Archived cases are read-only.", id);
+  }
+
+  return taskError(`Could not update status (${response.status}).`, id);
 }
 
 export async function deleteTask(id: number, title: string): Promise<DeleteTaskState> {

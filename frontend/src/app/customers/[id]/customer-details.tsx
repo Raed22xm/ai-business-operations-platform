@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { DeleteCustomerDialog } from "@/app/customers/delete-customer-dialog";
 import { EditCustomerForm } from "@/app/customers/edit-customer-form";
 import {
   formatCustomerCreatedAt,
@@ -19,6 +20,7 @@ export function CustomerDetails({
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
   return (
@@ -34,16 +36,29 @@ export function CustomerDetails({
           <h1 className="text-3xl font-semibold tracking-tight break-words">{customer.name}</h1>
         </div>
         {editing ? null : (
-          <button
-            type="button"
-            onClick={() => {
-              setNotice(null);
-              setEditing(true);
-            }}
-            className="w-fit shrink-0 rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900"
-          >
-            Edit customer
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setNotice(null);
+                setEditing(true);
+              }}
+              className="w-fit shrink-0 rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900"
+            >
+              Edit customer
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setNotice(null);
+                setDeleting(true);
+              }}
+              className="w-fit shrink-0 rounded-full border border-red-700 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-400 dark:text-red-400 dark:hover:bg-red-950"
+              aria-label={`Delete customer ${customer.name}`}
+            >
+              Delete customer
+            </button>
+          </div>
         )}
       </div>
 
@@ -94,6 +109,15 @@ export function CustomerDetails({
           </div>
         </dl>
       )}
+      {deleting ? (
+        <DeleteCustomerDialog
+          customer={customer}
+          listSearch=""
+          listPage={1}
+          soleRowOnPage={false}
+          onClose={() => setDeleting(false)}
+        />
+      ) : null}
     </div>
   );
 }

@@ -757,6 +757,40 @@ public class CasesControllerTests : IDisposable
         Assert.Equal(beforeCount, await _database.Cases.CountAsync());
     }
 
+    [Fact]
+    public async Task Export_AppliesDateRangeFilters_IncludesOnlyMatchingRows()
+    {
+        var customer = await AddCustomer("Range Customer", "range-case@example.com");
+        var early = await CreateCase(CreateController(), customer.Id, "Early Case", null);
+        var middle = await CreateCase(CreateController(), customer.Id, "Middle Case", null);
+        var late = await CreateCase(CreateController(), customer.Id, "Late Case", null);
+
+        await SetCreatedAt(early.Id, new DateTime(2026, 6, 1, 10, 0, 0, DateTimeKind.Utc));
+        await SetCreatedAt(middle.Id, new DateTime(2026, 6, 15, 12, 0, 0, DateTimeKind.Utc));
+        await SetCreatedAt(late.Id, new DateTime(2026, 6, 30, 14, 0, 0, DateTimeKind.Utc));
+
+        var result = Assert.IsType<FileContentResult>(
+            await CreateController().Export(
+                fromDate: new DateOnly(2026, 6, 10),
+                toDate: new DateOnly(2026, 6, 20)));
+
+        var text = StripBom(Encoding.UTF8.GetString(result.FileContents));
+        Assert.DoesNotContain("Early Case", text);
+        Assert.Contains("Middle Case", text);
+        Assert.DoesNotContain("Late Case", text);
+    }
+
+    [Fact]
+    public async Task Export_InvalidDateRange_ReturnsBadRequest()
+    {
+        var controller = CreateController();
+        var result = await controller.Export(
+            fromDate: new DateOnly(2026, 6, 20),
+            toDate: new DateOnly(2026, 6, 10));
+
+        AssertValidationProblem(result, "fromDate", "fromDate cannot be after toDate.");
+    }
+
     private static string StripBom(string text) =>
         text.Length > 0 && text[0] == '\uFEFF' ? text[1..] : text;
 

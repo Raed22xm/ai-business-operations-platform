@@ -13,6 +13,7 @@ export {
   caseArchiveBlockedReason,
   caseDetailsHref,
   caseStatusLabel,
+  casesExportHref,
   casesPageHref,
   formatCaseCreatedAt,
   isCaseArchived,
@@ -339,6 +340,8 @@ export async function getCasesPage(options?: {
   status?: CaseStatus;
   search?: string;
   archive?: CaseArchiveFilter;
+  fromDate?: string;
+  toDate?: string;
   page?: number;
   pageSize?: number;
 }): Promise<PagedCases> {
@@ -355,6 +358,14 @@ export async function getCasesPage(options?: {
   }
   if (options?.archive) {
     url.searchParams.set("archive", options.archive);
+  }
+  const fromDate = options?.fromDate?.trim();
+  if (fromDate) {
+    url.searchParams.set("fromDate", fromDate);
+  }
+  const toDate = options?.toDate?.trim();
+  if (toDate) {
+    url.searchParams.set("toDate", toDate);
   }
   url.searchParams.set("page", String(options?.page ?? 1));
   url.searchParams.set("pageSize", String(options?.pageSize ?? CASES_PAGE_SIZE));

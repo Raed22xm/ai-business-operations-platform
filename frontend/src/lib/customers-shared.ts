@@ -10,11 +10,21 @@ export type Customer = {
 export function customersPageHref(
   search: string | null,
   page: number | null = null,
+  fromDate: string | null = null,
+  toDate: string | null = null,
 ): string {
   const params = new URLSearchParams();
   const trimmed = search?.trim() ?? "";
   if (trimmed !== "") {
     params.set("search", trimmed);
+  }
+  const from = fromDate?.trim() ?? "";
+  if (from !== "") {
+    params.set("fromDate", from);
+  }
+  const to = toDate?.trim() ?? "";
+  if (to !== "") {
+    params.set("toDate", to);
   }
   if (page !== null && page > 1) {
     params.set("page", String(page));
@@ -24,11 +34,23 @@ export function customersPageHref(
   return query === "" ? "/customers" : `/customers?${query}`;
 }
 
-export function customersExportHref(search: string | null): string {
+export function customersExportHref(
+  search: string | null,
+  fromDate: string | null = null,
+  toDate: string | null = null,
+): string {
   const params = new URLSearchParams();
   const trimmed = search?.trim() ?? "";
   if (trimmed !== "") {
     params.set("search", trimmed);
+  }
+  const from = fromDate?.trim() ?? "";
+  if (from !== "") {
+    params.set("fromDate", from);
+  }
+  const to = toDate?.trim() ?? "";
+  if (to !== "") {
+    params.set("toDate", to);
   }
 
   const query = params.toString();

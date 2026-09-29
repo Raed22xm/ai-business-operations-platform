@@ -6,8 +6,22 @@ import {
   generateCaseSummary,
   type AssistantResult,
 } from "@/lib/assistant";
+import { checkCaseEscalation, type EscalationCheckResult } from "@/lib/escalation";
 import { createTask } from "@/lib/tasks";
 import { isTaskPriority, type TaskPriority } from "@/lib/tasks-shared";
+
+export async function checkCaseEscalationAction(caseId: number): Promise<EscalationCheckResult> {
+  try {
+    return await checkCaseEscalation(caseId);
+  } catch (error) {
+    return {
+      status: "error",
+      message: error instanceof Error ? error.message : "Could not perform escalation check.",
+      retryable: true,
+    };
+  }
+}
+
 
 export async function generateCaseSummaryAction(caseId: number): Promise<AssistantResult> {
   try {

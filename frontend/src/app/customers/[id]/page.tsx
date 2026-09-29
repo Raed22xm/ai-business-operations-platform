@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { CustomerCasesSection } from "@/app/customers/[id]/customer-cases-section";
 import { CustomerDetails } from "@/app/customers/[id]/customer-details";
 import { CustomerNotesSection } from "@/app/customers/[id]/customer-notes-section";
+import { CustomerActivitySection } from "@/app/customers/[id]/customer-activity-section";
 import { casesPageHref, getCases } from "@/lib/cases";
 import {
   customersPageHref,
@@ -77,6 +78,7 @@ export default async function CustomerDetailsPage({
         loadError={casesResult.error}
       />
       <CustomerNotesSection customerId={customer.id} />
+      <CustomerActivitySection customerId={customer.id} />
     </main>
   );
 }

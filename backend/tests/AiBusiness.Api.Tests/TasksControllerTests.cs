@@ -345,8 +345,8 @@ public class TasksControllerTests : IDisposable
         TasksController controller,
         int caseId,
         string title,
-        string? description,
-        DateOnly? dueDate)
+        string? description = null,
+        DateOnly? dueDate = null)
     {
         var result = await controller.Create(new CaseTask
         {
@@ -376,6 +376,81 @@ public class TasksControllerTests : IDisposable
         });
         var ok = Assert.IsType<OkObjectResult>(result);
         return Assert.IsType<CaseTask>(ok.Value);
+    }
+
+    [Fact]
+    public async Task UpdateStatus_ValidStatus_UpdatesTaskStatusAndPreservesOtherFields()
+    {
+        var work = await AddCase();
+        var controller = CreateController();
+        var task = await CreateTask(
+            controller,
+            work.Id,
+            "Initial Title",
+            "Important Description",
+            new DateOnly(2026, 12, 1));
+
+        var result = await CreateController().UpdateStatus(task.Id, new TaskStatusUpdate
+        {
+            Status = "Done",
+        });
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var updated = Assert.IsType<CaseTask>(ok.Value);
+        Assert.Equal(CaseTaskStatus.Done, updated.Status);
+        Assert.Equal("Initial Title", updated.Title);
+        Assert.Equal("Important Description", updated.Description);
+        Assert.Equal(new DateOnly(2026, 12, 1), updated.DueDate);
+
+        var activities = await _database.CaseActivities
+            .Where(a => a.CaseId == work.Id && a.EventType == CaseActivityEventType.TaskCompleted)
+            .ToListAsync();
+        Assert.Single(activities);
+    }
+
+    [Fact]
+    public async Task UpdateStatus_InvalidStatus_ReturnsValidationProblem()
+    {
+        var work = await AddCase();
+        var task = await CreateTask(CreateController(), work.Id, "Task");
+
+        var result = await CreateController().UpdateStatus(task.Id, new TaskStatusUpdate
+        {
+            Status = "NotAValidStatus",
+        });
+
+        var problem = Assert.IsType<ObjectResult>(result);
+        Assert.IsAssignableFrom<ValidationProblemDetails>(problem.Value);
+    }
+
+    [Fact]
+    public async Task UpdateStatus_UnknownTask_ReturnsNotFound()
+    {
+        var result = await CreateController().UpdateStatus(99999, new TaskStatusUpdate
+        {
+            Status = "Done",
+        });
+
+        Assert.IsType<NotFoundResult>(result);
+    }
+
+    [Fact]
+    public async Task UpdateStatus_ArchivedCase_ReturnsConflict()
+    {
+        var work = await AddCase();
+        var task = await CreateTask(CreateController(), work.Id, "Task");
+
+        work.ArchivedAt = DateTime.UtcNow;
+        await _database.SaveChangesAsync();
+
+        var result = await CreateController().UpdateStatus(task.Id, new TaskStatusUpdate
+        {
+            Status = "Done",
+        });
+
+        var problem = Assert.IsType<ObjectResult>(result);
+        var details = Assert.IsType<ProblemDetails>(problem.Value);
+        Assert.Equal(409, details.Status);
     }
 
     private async Task<CaseTask> GetTask(int id)

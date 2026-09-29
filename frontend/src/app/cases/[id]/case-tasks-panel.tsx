@@ -143,7 +143,7 @@ export function CaseTasksPanel({
                     </td>
                   </tr>
                 ) : (
-                  <tr key={task.id} className="border-t border-zinc-200 dark:border-zinc-800">
+                  <tr key={task.id} id={`task-${task.id}`} className="border-t border-zinc-200 dark:border-zinc-800">
                     <td className="px-4 py-3 font-medium break-words">{task.title}</td>
                     <td className="px-4 py-3"><span className="record-status" data-status={task.status}>{taskStatusLabel(task.status)}</span></td>
                     <td className="px-4 py-3">

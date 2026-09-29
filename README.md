@@ -2,7 +2,7 @@
 
 An enterprise-ready, AI-driven operations platform designed to automate and orchestrate core business workflows, starting with comprehensive Customer Relationship Management (CRM) and extensible agentic operations.
 
-**Version 1 so far:** customers, cases, customer inquiry intake (`/inquiry` turning inquiries into customers and open cases in one atomic transaction), saved response drafts (AI, mock, and manual draft review with human approval workflows and conflict prevention), a Tasks workspace (search/filter across cases), tasks on case details (with activity history), overview dashboard with AI assistant (summaries/drafts), private workspace sign-in (JWT + httpOnly cookie), overdue task visibility, CSV export, and manual PostgreSQL backup/restore scripts. A case is work requested by a customer (for example, “Studio 22 needs a booking page”). Inquiries can link to verified existing customers without overwriting profile details or atomically create new customers as needed. Each task belongs to one case. There is no public registration. Attachments are not built yet.
+**Version 1 so far:** customers, cases, customer inquiry intake (`/inquiry` turning inquiries into customers and open cases in one atomic transaction), saved response drafts (AI, mock, and manual draft review with human approval workflows and conflict prevention), a Tasks workspace (search/filter across cases), tasks on case details (with activity history), overview dashboard with AI assistant (summaries, drafts, follow-ups, and rule-based escalation checks), private workspace sign-in (JWT + httpOnly cookie), overdue task visibility, CSV export, and manual PostgreSQL backup/restore scripts. A case is work requested by a customer (for example, “Studio 22 needs a booking page”). Inquiries can link to verified existing customers without overwriting profile details or atomically create new customers as needed. Each task belongs to one case. There is no public registration. Attachments are not built yet.
 
 ---
 
@@ -105,6 +105,22 @@ Equivalent: set `ConnectionStrings__DefaultConnection` (or `AIBUSINESS_DATABASE_
 ./scripts/db/drop-restore-db.sh --from-user-secrets --database aibusiness_restore_<timestamp>
 ```
 
+### Database migrations and schema rollback
+
+```bash
+# Check migration status
+./scripts/db/migrate.sh --status --from-user-secrets
+
+# Apply pending migrations
+./scripts/db/migrate.sh --apply --from-user-secrets
+
+# Roll back to a specific migration
+./scripts/db/migrate.sh --rollback <MigrationName> --from-user-secrets
+
+# Generate idempotent SQL migration script
+./scripts/db/migrate.sh --script release_migration.sql
+```
+
 ### Cleanup of old dump files
 
 Delete outdated `.dump` / `.dump.meta.json` files from the backup folder when you no longer need them (Finder/`rm`). Do not move dumps into the git work tree.
@@ -202,7 +218,7 @@ Open [http://localhost:3000/login](http://localhost:3000/login).
 - All CRM and assistant API routes require a valid JWT. Public: `GET /api/health`, `POST /api/auth/login`, `POST /api/auth/logout`.
 - Assistant endpoints are rate-limited per authenticated user (`RateLimiting:Assistant:PermitLimit` / `WindowSeconds`, defaults 20 / 60s). Over quota returns **HTTP 429**; the assistant panel shows a wait-and-retry message.
 
-**Deployment notes (not done here):** use HTTPS and `AUTH_COOKIE_SECURE=true`, rotate `Auth:JwtSigningKey`, keep passwords only in a secret store, and place the API behind a private network or reverse proxy. Multi-instance rate limits need a shared store.
+**Deployment & Rollback:** For complete production deployment, environment variable configuration (including `AUTH_COOKIE_SECURE=true`), and step-by-step rollback procedures, refer to the [Pilot Deployment & Rollback Runbook](docs/pilot-deployment-runbook.md).
 
 ---
 
@@ -215,8 +231,8 @@ Open [http://localhost:3000/](http://localhost:3000/).
 - KPI tiles include **Overdue tasks** and **Due today** counts (all matching rows, not one page), plus active cases and customers. An **Outstanding tasks** list shows open work earliest due first (with priority labels), each linking to its case.
 - Due dates are calendar dates. A task is **Overdue** when its due date is before today in the business time zone (`BusinessTimezone:TimeZoneId`, default `Europe/Copenhagen`) and status is not Done. Tasks due today are not overdue.
 - The case timeline shows the actual creation time and current tasks (with priority and Overdue when applicable). The case brief can be copied from saved data.
-- **AI assistant:** With a case selected, **Generate summary** and **Draft response** call the backend. Results appear in an editable panel with **Copy**, loading text, errors, and **Retry**. Duplicate clicks are blocked while a request is in flight; output clears when the selected case changes. **Schedule follow-up** opens an internal follow-up form for active cases with customer/case context, default title "Follow up with [customer name]", required manual due date (never chosen automatically), priority selection, and optional description. It creates a standard `Todo` task, refreshes the timeline and due-date views, and explicitly notes that internal tasks do not send emails, SMS, or notifications to customers. Action is disabled with explanatory badges/tooltips when no case is selected or when a case is archived. **Escalation check** stays disabled and marked Coming soon.
-- Generation sends the selected case’s title, description, and status, the customer’s name/company/email, and task titles/statuses/priorities/due dates/descriptions to the configured OpenAI-compatible provider (or the local mock). Treat that as sharing operational data with the provider.
+- **AI assistant:** With a case selected, **Generate summary** and **Draft response** call the backend. Results appear in an editable panel with **Copy**, loading text, errors, and **Retry**. Duplicate clicks are blocked while a request is in flight; output clears when the selected case changes. **Schedule follow-up** opens an internal follow-up form for active cases with customer/case context, default title "Follow up with [customer name]", required manual due date (never chosen automatically), priority selection, and optional description. It creates a standard `Todo` task, refreshes the timeline and due-date views, and explicitly notes that internal tasks do not send emails, SMS, or notifications to customers. **Escalation check** runs deterministic rule-based checks on the selected case without invoking any AI provider: (1) Overdue unfinished tasks using business timezone rules, (2) High-priority unfinished tasks, and (3) Open or In-progress cases with no unfinished tasks. Flags are presented as "Needs review" with direct links to tasks; if no rules match, it returns "No attention flags found." The check includes loading, error, Retry, and empty states, clears when selected case changes, and is disabled with explanatory tooltips and badges when no case is selected or when a case is archived.
+- Generation sends the selected case’s title, description, and status, the customer’s name/company/email, and task titles/statuses/priorities/due dates/descriptions to the configured OpenAI-compatible provider (or the local mock). Treat that as sharing operational data with the provider. Escalation checks run strictly locally and deterministically against saved case and task records.
 - Loading, empty results, and API failure (with **Try again**) are handled separately. Failed requests do not show zero counts.
 - Customers, Cases, details, and task forms share the dashboard's charcoal/green design. Desktop lists place the creation form beside the records; narrow screens stack the panels and scroll tables within their own area.
 
@@ -412,6 +428,7 @@ curl -s -X POST http://localhost:5222/api/assistant/cases/{caseId}/draft-respons
 | :--- | :--- | :--- |
 | `POST` | `/api/assistant/cases/{caseId}/summary` | Loads the case, customer, and tasks server-side and returns a short summary (`requestSummary`, `status`, `outstandingTasks`, `suggestedNextAction`, `formattedText`). Facts come from saved data; the suggested next action is labeled as a suggestion. Uses OpenAI when `OpenAI:ApiKey` is set; otherwise a mock (`source: "mock"`) with `setupHint`. `404` if the case is missing; `502` on provider failure; `504` on timeout. |
 | `POST` | `/api/assistant/cases/{caseId}/draft-response` | Same data load; returns editable `draftText` for review/copy (does not send messages). Same status codes and mock behavior as summary. |
+| `GET` | `/api/assistant/cases/{caseId}/escalation-check` | Runs deterministic rule-based escalation checks without AI providers (evaluating overdue tasks via business timezone rules, high-priority unfinished tasks, and open cases with no unfinished tasks). Returns `CaseEscalationResponse` with flags categorized as `NeedsReview` and task links. `404` if case missing; `409 Conflict` if case archived. Exempt from AI rate limits. |
 
 **Privacy:** these endpoints send case title/description/status, customer name/company/email, and task title/description/status/due date to the provider. Customer notes are never included. Do not use production secrets in the frontend.
 
@@ -540,8 +557,9 @@ npm run build
 - JWT logout is cookie-clear only; tokens remain valid until expiry unless the signing key is rotated.
 - In-memory assistant rate limits are per API process.
 - Backup/restore is manual only (no cloud storage or scheduling yet).
-- Case activity history is product event history (not a tamper-proof audit log) and starts when recording was enabled.
-- Task create/edit/delete remains on case details (the `/tasks` workspace is browse/filter only).
+- Case and customer activity history are product event history (not tamper-proof audit logs) and start when recording was enabled.
+- Task status can be updated directly from the `/tasks` workspace table (task creation, editing, and deletion remain on case details).
+- Live due-date alerts in the top navigation bar highlight overdue and today's tasks with 1-click filtering directly to `/tasks?due=overdue` and `/tasks?due=today`.
 - No attachments.
 - Browser e2e does not cover mocked network-drop failures for task create/edit/delete (HTTP error mocks are covered).
 - Manual screen-reader verification of task live regions and dialog announcements is not part of the automated suite.
