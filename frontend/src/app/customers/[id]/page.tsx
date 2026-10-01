@@ -3,6 +3,7 @@ import { CustomerCasesSection } from "@/app/customers/[id]/customer-cases-sectio
 import { CustomerDetails } from "@/app/customers/[id]/customer-details";
 import { CustomerNotesSection } from "@/app/customers/[id]/customer-notes-section";
 import { CustomerActivitySection } from "@/app/customers/[id]/customer-activity-section";
+import { CustomerDeliverablesSection } from "@/app/customers/[id]/customer-deliverables-section";
 import { casesPageHref, getCases } from "@/lib/cases";
 import {
   customersPageHref,
@@ -70,6 +71,11 @@ export default async function CustomerDetailsPage({
         customer={customer}
         backHref={backHref}
         backLabel="Back to customers"
+      />
+      <CustomerDeliverablesSection
+        customerId={customer.id}
+        customerName={customer.name}
+        company={customer.company}
       />
       <CustomerCasesSection
         customerName={customer.name}
