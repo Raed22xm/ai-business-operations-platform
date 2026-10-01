@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: aibusiness-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    region: frankfurt
+    envVars:
+      - key: ConnectionStrings__DefaultConnection
+        fromDatabase:
+          name: aibusiness-db
+          property: connectionString
+      - key: Auth__Username
+        value: admin
+      - key: Auth__Password
+        value: admin123
+      - key: Auth__JwtSigningKey
+        generateValue: true
+      - key: ApplyMigrationsOnStartup
+        value: "true"
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+
+databases:
+  - name: aibusiness-db
+    plan: free
+    region: frankfurt
+    databaseName: aibusiness
+    user: aibusiness_user
