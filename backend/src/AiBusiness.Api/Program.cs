@@ -12,12 +12,13 @@ using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-if (string.IsNullOrWhiteSpace(connectionString))
+var rawConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+if (string.IsNullOrWhiteSpace(rawConnectionString))
 {
     throw new InvalidOperationException(
         "Missing connection string 'DefaultConnection'. Set it with dotnet user-secrets or the ConnectionStrings__DefaultConnection environment variable.");
 }
+var connectionString = NormalizePostgresConnectionString(rawConnectionString);
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi(options => options.AddCrmDocumentation());
@@ -171,5 +172,55 @@ if (app.Configuration.GetValue<bool>("ApplyMigrationsOnStartup"))
 app.MapControllers();
 
 app.Run();
+
+static string NormalizePostgresConnectionString(string connectionString)
+{
+    if (string.IsNullOrWhiteSpace(connectionString))
+    {
+        return connectionString;
+    }
+
+    var trimmed = connectionString.Trim();
+    if (!trimmed.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) &&
+        !trimmed.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
+    {
+        return trimmed;
+    }
+
+    var uri = new Uri(trimmed);
+    var userInfo = uri.UserInfo.Split(':', 2);
+    var username = Uri.UnescapeDataString(userInfo[0]);
+    var password = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : "";
+    var port = uri.Port > 0 ? uri.Port : 5432;
+    var database = uri.AbsolutePath.TrimStart('/');
+
+    var builder = new Npgsql.NpgsqlConnectionStringBuilder
+    {
+        Host = uri.Host,
+        Port = port,
+        Database = database,
+        Username = username,
+        Password = password,
+        SslMode = Npgsql.SslMode.Prefer,
+    };
+
+    if (!string.IsNullOrEmpty(uri.Query))
+    {
+        var queryParams = uri.Query.TrimStart('?').Split('&');
+        foreach (var param in queryParams)
+        {
+            var parts = param.Split('=', 2);
+            if (parts.Length == 2 && parts[0].Equals("sslmode", StringComparison.OrdinalIgnoreCase))
+            {
+                if (Enum.TryParse<Npgsql.SslMode>(parts[1], true, out var sslMode))
+                {
+                    builder.SslMode = sslMode;
+                }
+            }
+        }
+    }
+
+    return builder.ConnectionString;
+}
 
 public partial class Program;
